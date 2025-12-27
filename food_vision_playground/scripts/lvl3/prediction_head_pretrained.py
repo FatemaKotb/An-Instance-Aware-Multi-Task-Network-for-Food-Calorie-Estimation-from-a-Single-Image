@@ -140,9 +140,13 @@ class PredictionHeadPretrainedCLIP:
 
         conf, cls = torch.max(probs, dim=0)
 
+        cls_id = int(cls.item())
+        cls_name = self.class_names[cls_id] if 0 <= cls_id < len(self.class_names) else None
+
         return PredictionOutput(
-            food_logits=probs.detach().cpu(),  # store probabilities as logits-like vector for convenience
-            food_class_id=int(cls.item()),
+            food_logits=probs.detach().cpu(),
+            food_class_id=cls_id,
+            food_class_name=cls_name,
             food_conf=float(conf.item()),
             portion=1.0,
         )
