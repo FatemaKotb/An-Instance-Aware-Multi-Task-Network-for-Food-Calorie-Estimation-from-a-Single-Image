@@ -105,7 +105,7 @@ class Pipeline:
             d_med, d_mean = self._mask_pool_depth(depth_hw, m)
 
             fusion_out = self.fusion_block(pooled_feats, d_med, d_mean)
-            pred = self.prediction_head(fusion_out)
+            pred = self.prediction_head(img_rgb_uint8=img_rgb_uint8, box_xyxy=boxes[i], mask_hw=m, fusion=fusion_out)
             phys = self.physics_head(mask_hw=m, depth_median=d_med, prediction=pred)
 
             instance_outputs.append(
