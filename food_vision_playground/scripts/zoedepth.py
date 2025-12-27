@@ -94,7 +94,7 @@ class ZoeDepthBlock:
     def __call__(self, img_rgb_uint8: np.ndarray) -> DepthResult:
         return self.predict_depth(img_rgb_uint8)
 
-    def save_depth_assets(slef, out_dir: Path, depth_hw: np.ndarray) -> None:
+    def save_depth_assets(self, out_dir: Path, depth_hw: np.ndarray) -> None:
         # save raw
         np.save(out_dir / "depth.npy", depth_hw.astype(np.float32))
 
