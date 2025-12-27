@@ -1,29 +1,27 @@
 from __future__ import annotations
 
-from typing import List, Tuple, Optional
-
+from typing import List, Tuple
 import numpy as np
 import torch
 
-from scripts.dtypes import InstanceOutputs, PipelineOutput
-from scripts.fusion_stub import FusionStub
-from scripts.prediction_head_stub import PredictionHeadStub
-from scripts.physics_head_stub import PhysicsHeadStub
+from scripts.dtypes import (
+    InstanceOutputs,
+    PipelineOutput,
+    FusionOutput,
+    PredictionOutput,
+    PhysicsOutput,
+)
 
 
 class Pipeline:
     """
-    Inference pipeline that wires:
-      - backbone features (multi-scale)
-      - segmentation instances (masks/boxes/scores)
-      - depth map
-      - per-instance pooling
-      - fusion module -> (F_i, f_i, v_i)
-      - prediction head -> food class + portion
-      - physics head -> area/volume/calories
+    Inference pipeline (composition-only).
 
-    This class is designed so you can replace FusionStub / PredictionHeadStub / PhysicsHeadStub
-    later without changing anything else.
+    Option 1 (explicit wiring):
+      - This class does NOT create default blocks internally.
+      - You must pass all blocks (backbone/seg/depth/fusion/heads) at construction.
+
+    This avoids hidden defaults and makes configuration reproducible.
     """
 
     def __init__(
@@ -31,32 +29,20 @@ class Pipeline:
         backbone_block,
         seg_block,
         depth_block,
+        fusion_block,
+        prediction_head,
+        physics_head,
         device: str = "cuda",
         seg_score_thresh: float = 0.5,
-        fusion: Optional[object] = None,
-        prediction_head: Optional[object] = None,
-        physics_head: Optional[object] = None,
     ):
         self.backbone_block = backbone_block
         self.seg_block = seg_block
         self.depth_block = depth_block
+        self.fusion_block = fusion_block
+        self.prediction_head = prediction_head
+        self.physics_head = physics_head
         self.device = device
         self.seg_score_thresh = seg_score_thresh
-
-        # ---------- Fusion module (replace later) ----------
-        if fusion is None:
-            fusion = FusionStub()
-        self.fusion = fusion
-
-        # ---------- Prediction head (stub) ----------
-        if prediction_head is None:
-            prediction_head = PredictionHeadStub(num_food_classes=101)
-        self.prediction_head = prediction_head
-
-        # ---------- Physics head (stub) ----------
-        if physics_head is None:
-            physics_head = PhysicsHeadStub(default_kcal_per_volume=1.0)
-        self.physics_head = physics_head
 
     # ---------- Utilities ----------
 
@@ -88,8 +74,13 @@ class Pipeline:
 
     @torch.inference_mode()
     def run(self, img_rgb_uint8: np.ndarray) -> PipelineOutput:
-        """Run the full pipeline on a single RGB uint8 image."""
-
+        """
+        Runs the full pipeline:
+          Level 1: backbone features, masks, depth
+          Level 2: fusion outputs (Fi, fi, vi)
+          Level 3: prediction head (food + portion)
+          Level 4: physics head (area/volume/calories)
+        """
         # 1) Backbone features (multi-scale)
         back_out = self.backbone_block(img_rgb_uint8)
         feats = back_out.features  # list of [1,C,Hf,Wf]
@@ -104,25 +95,17 @@ class Pipeline:
         # 3) Depth map
         depth_hw = self.depth_block(img_rgb_uint8).depth  # [H,W] float32
 
-        # 4) Per-instance pooling -> 5) fusion -> 6) prediction head -> 7) physics head
+        # 4) Per-instance fusion + heads
         instance_outputs: List[InstanceOutputs] = []
         for i in range(masks.shape[0]):
             m = masks[i]
             area_px = int(m.sum())
 
-            # F_i input: multi-scale masked pooled vectors
-            pooled_feats = [self._mask_pool_feature(f, m) for f in feats]  # list of [C_i] on CPU
-
-            # v_i input: compact depth stats
+            pooled_feats = [self._mask_pool_feature(f, m) for f in feats]  # list of [C_s] on CPU
             d_med, d_mean = self._mask_pool_depth(depth_hw, m)
 
-            # Fusion output: (F_i, f_i, v_i)
-            fusion_out = self.fusion(pooled_feats, d_med, d_mean)
-
-            # Prediction head: (F_i, f_i, v_i) -> (food logits, portion)
+            fusion_out = self.fusion_block(pooled_feats, d_med, d_mean)
             pred = self.prediction_head(fusion_out)
-
-            # Physics head: (mask, depth stats, predicted class) -> (area, volume, calories)
             phys = self.physics_head(mask_hw=m, depth_median=d_med, prediction=pred)
 
             instance_outputs.append(
@@ -131,12 +114,12 @@ class Pipeline:
                     box_xyxy=boxes[i],
                     score=float(scrs[i]),
                     seg_class_id=int(seg_class_ids[i]),
-                    fusion=fusion_out,
-                    prediction=pred,
-                    physics=phys,
                     area_px=area_px,
                     depth_median=d_med,
                     depth_mean=d_mean,
+                    fusion=fusion_out,
+                    prediction=pred,
+                    physics=phys,
                 )
             )
 
