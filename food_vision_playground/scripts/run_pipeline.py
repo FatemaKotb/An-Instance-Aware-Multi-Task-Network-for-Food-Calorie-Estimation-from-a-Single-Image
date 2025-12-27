@@ -46,7 +46,7 @@ def main() -> None:
     parser.add_argument("--image", type=str, required=True, help="Path to an input image.")
     parser.add_argument("--device", type=str, default=None, help="cuda or cpu. Default: auto-detect.")
     parser.add_argument("--seg_thresh", type=float, default=0.5, help="Segmentation score threshold.")
-    parser.add_argument("--topk", type=int, default=5, help="How many instances to print.")
+    parser.add_argument("--topk", type=int, default=1, help="How many instances to print.")
     parser.add_argument("--out_dir", type=str, default=None, help="Output directory. Default: runs/<image_stem>/")
 
     args = parser.parse_args()
