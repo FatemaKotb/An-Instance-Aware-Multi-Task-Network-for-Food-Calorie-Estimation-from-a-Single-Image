@@ -35,6 +35,50 @@ class DepthResult:
     depth: np.ndarray  # [H,W] float32
 
 
+# ---------- Fusion outputs (match the diagram) ----------
+
+@dataclass
+class FusionOutput:
+    """Outputs of the Instance-Aware Fusion Module.
+
+    - masked_features (F_i): pooled semantics per scale (list of [C_s])
+    - global_features (f_i): a single global descriptor ([D])
+    - instance_depth (v_i): depth descriptor (e.g., [depth_median, depth_mean])
+    """
+    masked_features: List[torch.Tensor]  # each [C_s] on CPU
+    global_features: torch.Tensor        # [D] on CPU
+    instance_depth: torch.Tensor         # [Dv] on CPU (typically [2])
+
+
+# ---------- Prediction head outputs (green block) ----------
+
+@dataclass
+class PredictionOutput:
+    """Outputs of the Prediction Head.
+
+    - food_logits: [K] logits for K food classes
+    - food_class_id: argmax id (optional convenience)
+    - food_conf: max softmax probability (optional convenience)
+    - portion: scalar proxy (stub) or a learned portion value
+    """
+    food_logits: torch.Tensor            # [K] on CPU
+    food_class_id: int
+    food_conf: float
+    portion: float
+
+
+# ---------- Physics head outputs (green block) ----------
+
+@dataclass
+class PhysicsOutput:
+    """Outputs of the Physics-Based Calorie Estimation block."""
+    area_px: float
+    volume: float
+    calories: float
+
+
+# ---------- Data containers ----------
+
 @dataclass
 class InstanceInputs:
     """What your future fusion module will consume."""
@@ -57,12 +101,20 @@ class InstanceOutputs:
     mask: np.ndarray                 # [H,W] bool
     box_xyxy: np.ndarray             # [4]
     score: float
-    class_id: int
 
-    # embedding after (stub) fusion: [D] torch tensor on CPU
-    embedding: torch.Tensor
+    # segmentation label (from the segmenter, e.g., COCO)
+    seg_class_id: int
 
-    # geometry proxies
+    # fusion outputs
+    fusion: FusionOutput
+
+    # prediction head outputs (food + portion)
+    prediction: PredictionOutput
+
+    # physics head outputs (area/volume/calories)
+    physics: PhysicsOutput
+
+    # geometry proxies (kept for convenience)
     area_px: int
     depth_median: float
     depth_mean: float

@@ -2,27 +2,31 @@
 from __future__ import annotations
 
 import argparse
+import warnings
 from pathlib import Path
-from PIL import Image
 
 import numpy as np
 import torch
+from PIL import Image
 
 from scripts.efficientnet import EfficientNetBlock
 from scripts.maskrcnn_torchvision import MaskRCNNTorchVisionBlock
 from scripts.zoedepth import ZoeDepthBlock
 from scripts.fusion_stub import FusionStub
 from scripts.pipeline import Pipeline
-from scripts.physics_stub import PhysicsCalorieEstimator
+from scripts.prediction_head_stub import PredictionHeadStub
+from scripts.physics_head_stub import PhysicsHeadStub
 
-import warnings
+# Keep terminal output clean by default (you can loosen this if debugging)
 warnings.filterwarnings("ignore", message="torch.meshgrid:*")
 warnings.filterwarnings("ignore", message="enable_nested_tensor*")
+
 
 def load_rgb(path: str) -> np.ndarray:
     """Load an image from disk as RGB uint8 numpy array [H,W,3]."""
     img = Image.open(path).convert("RGB")
     return np.array(img)
+
 
 def ensure_uint8_rgb(img: np.ndarray) -> np.ndarray:
     """Ensure input is uint8 RGB [H,W,3]."""
@@ -32,8 +36,10 @@ def ensure_uint8_rgb(img: np.ndarray) -> np.ndarray:
         raise ValueError(f"Expected RGB image [H,W,3], got shape={img.shape}")
     return img
 
+
 def save_uint8_rgb(path: Path, img_rgb_uint8: np.ndarray) -> None:
     Image.fromarray(img_rgb_uint8).save(path)
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Instantiate blocks, build pipeline, run inference on one image.")
@@ -56,7 +62,6 @@ def main() -> None:
         raise FileNotFoundError(f"Image not found: {img_path}")
 
     img = ensure_uint8_rgb(load_rgb(str(img_path)))
-    H, W = img.shape[:2]
     print("Image:", img.shape, img.dtype)
 
     # ---- Instantiate blocks ----
@@ -68,13 +73,16 @@ def main() -> None:
     )
 
     seg_block = MaskRCNNTorchVisionBlock(device=device)
-
     depth_block = ZoeDepthBlock(device=device)
 
+    # Fusion outputs the three signals: (F_i, f_i, v_i)
     fusion = FusionStub()
 
-    # Optional: physics stub (not used by Pipeline class right now)
-    physics = PhysicsCalorieEstimator(default_density=1.0)
+    # PredictionHeadStub consumes fusion outputs and returns food+portion placeholders
+    pred_head = PredictionHeadStub(num_food_classes=101)
+
+    # PhysicsHeadStub consumes geometry + predicted class and returns area/volume/calories proxies
+    phys_head = PhysicsHeadStub(default_kcal_per_volume=1.0)
 
     # ---- Build pipeline ----
     pipe = Pipeline(
@@ -84,6 +92,8 @@ def main() -> None:
         device=device,
         seg_score_thresh=args.seg_thresh,
         fusion=fusion,
+        prediction_head=pred_head,
+        physics_head=phys_head,
     )
 
     # ---- Run pipeline ----
@@ -118,12 +128,21 @@ def main() -> None:
     lines.append(f"Backbone feature maps: {len(out.backbone_features)}")
     lines.append("")
 
+    # Show a small per-instance summary
     for i, inst in enumerate(out.instance_outputs[: args.topk]):
-        cal_proxy = physics.estimate(inst.area_px, inst.depth_median, inst.class_id)
+        # Prediction head outputs
+        pred = inst.prediction
+        food_id = pred.food_class_id
+        food_conf = pred.food_conf
+
+        # Physics head outputs
+        phys = inst.physics
+
         lines.append(
-            f"[{i}] score={inst.score:.3f} class_id={inst.class_id} "
-            f"area_px={inst.area_px} d_med={inst.depth_median:.4f} d_mean={inst.depth_mean:.4f} "
-            f"emb_dim={int(inst.embedding.shape[0])} cal_proxy={cal_proxy:.2f}"
+            f"[{i}] seg_score={inst.score:.3f} seg_class_id={inst.seg_class_id} "
+            f"area_px={phys.area_px} d_med={inst.depth_median:.4f} d_mean={inst.depth_mean:.4f} "
+            f"food_id={food_id} food_conf={food_conf} portion={pred.portion} "
+            f"volume={phys.volume:.2f} calories={phys.calories:.2f}"
         )
 
     report_text = "\n".join(lines)
@@ -131,7 +150,6 @@ def main() -> None:
     (out_dir / "report.txt").write_text(report_text, encoding="utf-8")
 
     print(f"\nSaved assets to: {out_dir}")
-
 
 
 if __name__ == "__main__":

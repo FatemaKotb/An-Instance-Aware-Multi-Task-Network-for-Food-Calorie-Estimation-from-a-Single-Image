@@ -1,24 +1,33 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 import sys
 from pathlib import Path
+
 import numpy as np
 import torch
-from PIL import Image
-from pathlib import Path
 
 from scripts.dtypes import DepthResult
 
 
-class ZoeDepthBlock:
-    """ZoeDepth wrapper as a block for clean pipeline instantiation."""
+# ZoeDepth NK checkpoint
+_ZOED_NK_URL = "https://github.com/isl-org/ZoeDepth/releases/download/v1.0/ZoeD_M12_NK.pt"
 
-    # ZoeDepth NK checkpoint
-    _ZOED_NK_URL = "https://github.com/isl-org/ZoeDepth/releases/download/v1.0/ZoeD_M12_NK.pt"
+
+class ZoeDepthBlock:
+    """
+    ZoeDepth wrapped as a block.
+
+    Uses torch.hub to fetch the repo and checkpoint (the repo is not a pip project).
+
+    Notes:
+      - We load with strict=False and filter out non-learnable keys that can fail on some Windows/PyTorch combos.
+      - Output depth is typically relative/affine, not guaranteed metric without calibration.
+    """
 
     def __init__(self, device: str = "cuda"):
         self.device = device
-        self.model = self._load_zoedepth(device=device)
+        self.model = self.load_zoedepth(device=device)
 
     def _ensure_zoedepth_importable_from_torchhub(self) -> None:
         """
@@ -40,7 +49,7 @@ class ZoeDepthBlock:
         if repo_path not in sys.path:
             sys.path.insert(0, repo_path)
 
-    def _load_zoedepth(self, device: str = "cuda"):
+    def load_zoedepth(self, device: str = "cuda"):
         """
         Load ZoeDepth NK without pip installing the repo.
         Avoids strict state_dict loading that fails on some torch/Windows combos.
@@ -55,7 +64,7 @@ class ZoeDepthBlock:
         model = build_model(config)
 
         # Download checkpoint
-        ckpt = torch.hub.load_state_dict_from_url(self._ZOED_NK_URL, map_location="cpu", progress=True)
+        ckpt = torch.hub.load_state_dict_from_url(_ZOED_NK_URL, map_location="cpu", progress=True)
         if isinstance(ckpt, dict) and "state_dict" in ckpt:
             sd = ckpt["state_dict"]
         elif isinstance(ckpt, dict) and "model" in ckpt:
@@ -71,30 +80,31 @@ class ZoeDepthBlock:
         return model
 
     @torch.inference_mode()
-    def predict_depth(self, img_rgb_uint8: np.ndarray) -> DepthResult:
-        """
-        Predict depth from RGB uint8 image.
-        Output is float32 [H,W].
-        """
+    def predict(self, img_rgb_uint8: np.ndarray) -> DepthResult:
+        """Predict a dense depth map for an RGB uint8 image."""
         from PIL import Image
         import torchvision.transforms as T
 
         img = Image.fromarray(img_rgb_uint8)
-        x = T.ToTensor()(img).unsqueeze(0).to(self.device)  # [1,3,H,W]
+        x = T.ToTensor()(img).unsqueeze(0).to(self.device)
 
         out = self.model.infer(x)
         depth = out["depth"] if isinstance(out, dict) else out
-
         if depth.ndim == 4:
             depth = depth[0, 0]
-
-        return DepthResult(depth=depth.detach().float().cpu().numpy().astype(np.float32))
+        return DepthResult(depth.detach().float().cpu().numpy().astype(np.float32))
 
     @torch.inference_mode()
     def __call__(self, img_rgb_uint8: np.ndarray) -> DepthResult:
-        return self.predict_depth(img_rgb_uint8)
+        return self.predict(img_rgb_uint8)
 
     def save_depth_assets(self, out_dir: Path, depth_hw: np.ndarray) -> None:
+        """Save raw depth (npy) and a normalized PNG for quick visualization."""
+        from PIL import Image
+
+        out_dir = Path(out_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+
         # save raw
         np.save(out_dir / "depth.npy", depth_hw.astype(np.float32))
 
