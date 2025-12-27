@@ -72,7 +72,7 @@ class PredictionOutput:
 @dataclass
 class PhysicsOutput:
     """Outputs of the Physics-Based Calorie Estimation block."""
-    area_px: int
+    area_px: float
     volume: float
     calories: float
 

@@ -8,7 +8,7 @@ from scripts.lvl1.efficientnet import EfficientNetBlock
 from scripts.lvl1.maskrcnn_torchvision import MaskRCNNTorchVisionBlock
 from scripts.lvl1.zoedepth import ZoeDepthBlock
 from scripts.lvl2.fusion_stub import FusionStub
-from scripts.lvl3.prediction_head_stub import PredictionHeadStub
+from scripts.lvl3.prediction_head_pretrained import PredictionHeadPretrainedCLIP
 from scripts.lvl4.physics_head_stub import PhysicsHeadStub
 
 
@@ -38,7 +38,7 @@ def build_default_pipeline(cfg: PipelineFactoryConfig) -> Pipeline:
     depth = ZoeDepthBlock(device=cfg.device)
 
     fusion = FusionStub()
-    pred_head = PredictionHeadStub()
+    pred_head = PredictionHeadPretrainedCLIP(device=cfg.device)
     phys_head = PhysicsHeadStub(
         kcal_per_volume_by_class=cfg.kcal_per_volume_by_class,
         default_kcal_per_volume=cfg.default_kcal_per_volume,
