@@ -63,6 +63,7 @@ class PredictionOutput:
     """
     food_logits: torch.Tensor            # [K] on CPU
     food_class_id: int
+    food_class_name: str
     food_conf: float
     portion: float
 

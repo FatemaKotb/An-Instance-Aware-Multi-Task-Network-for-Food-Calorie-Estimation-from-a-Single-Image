@@ -191,7 +191,8 @@ def main() -> None:
                 pred = inst.prediction
                 phys = inst.physics
 
-                food_class = getattr(pred, "food_class_id", None)
+                food_class_id = getattr(pred, "food_class_id", None)
+                food_class_name = getattr(pred, "food_class_name", None)
                 food_conf = getattr(pred, "food_conf", None)
                 portion = getattr(pred, "portion", None)
 
@@ -199,7 +200,7 @@ def main() -> None:
                     f"[{i}] score={inst.score:.3f} seg_class_id={inst.seg_class_id} "
                     f"area_px={phys.area_px} "
                     f"volume={_safe_float(phys.volume)} calories={_safe_float(phys.calories)} "
-                    f"food_class={food_class} food_conf={_safe_float(food_conf)} portion={_safe_float(portion)}"
+                    f"food_class_id={food_class_id} food_class_name={food_class_name} food_conf={_safe_float(food_conf)} portion={_safe_float(portion)}"
                 )
 
     logger.info("DONE: run_pipeline finished successfully.")
