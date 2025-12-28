@@ -25,7 +25,7 @@ class PhysicsHeadStub:
     This stub uses:
       A_i = sum(mask)
       V_i = A_i * depth_median
-      C_i = V_i * density
+      C_i = V_i * kcal_per_volume
 
     Replace later with calibrated geometry + proper food densities.
     """
@@ -47,21 +47,19 @@ class PhysicsHeadStub:
         area_px = int(mask_hw.astype(bool).sum())
 
         if np.isnan(depth_median):
-            volume = float('nan')
+            volume = float("nan")
         else:
             volume = float(area_px) * float(depth_median)
 
-        # Use predicted food class if available; otherwise fall back to default density
-        class_id = prediction.food_class_id
-        if class_id is None:
-            kcal_per_volume = self.default_kcal_per_volume
-        else:
-            kcal_per_volume = self.kcal_per_volume_by_class.get(int(class_id), self.default_kcal_per_volume)
+        # With locked contract, stub uses -1 for "unknown"
+        class_id = int(prediction.food_class_id)
+        kcal_per_volume = self.kcal_per_volume_by_class.get(class_id, self.default_kcal_per_volume)
 
-        calories = float('nan') if np.isnan(volume) else float(volume) * float(kcal_per_volume)
+        calories = float("nan") if np.isnan(volume) else float(volume) * float(kcal_per_volume)
 
         return PhysicsOutput(
             area_px=area_px,
             volume=volume,
             calories=calories,
+            kcal_per_volume_used=float(kcal_per_volume),
         )

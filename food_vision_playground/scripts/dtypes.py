@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List, Literal, Optional, Tuple
 
 import numpy as np
 import torch
 
-Mode = Literal["cls", "backbone"]
 
+
+# ------------------- lvl 1 -------------------
+Mode = Literal["cls", "backbone"]
 
 @dataclass
 class ClassificationResult:
@@ -15,12 +17,10 @@ class ClassificationResult:
     topk_probs: List[float]
     logits: Optional[torch.Tensor] = None  # [B, num_classes] if return_logits=True
 
-
 @dataclass
 class BackboneOutput:
     # Multi-scale feature maps: each tensor is [B, C_i, H_i, W_i]
     features: List[torch.Tensor]
-
 
 @dataclass
 class InstanceSegmentationResult:
@@ -29,14 +29,11 @@ class InstanceSegmentationResult:
     class_ids: np.ndarray      # [N]
     masks: np.ndarray          # [N,H,W] bool
 
-
 @dataclass
 class DepthResult:
     depth: np.ndarray  # [H,W] float32
 
-
-# ---------- Fusion outputs (match the diagram) ----------
-
+# ------------------- lvl 2 -------------------
 @dataclass
 class FusionOutput:
     """Outputs of the Instance-Aware Fusion Module.
@@ -49,54 +46,48 @@ class FusionOutput:
     global_features: torch.Tensor        # [D] on CPU
     instance_depth: torch.Tensor         # [Dv] on CPU (typically [2])
 
-
-# ---------- Prediction head outputs (green block) ----------
-
+# ------------------- lvl 3 -------------------
 @dataclass
 class PredictionOutput:
     """Outputs of the Prediction Head.
 
-    - food_logits: [K] logits for K food classes
-    - food_class_id: argmax id (optional convenience)
-    - food_conf: max softmax probability (optional convenience)
-    - portion: scalar proxy (stub) or a learned portion value
+    Contract (always present, even for stubs):
+      - food_class_id
+      - food_class_name
+      - food_conf
+      - top5_foods
+      - portion
+
+    Notes:
+      - food_logits is also included for debugging/analysis.
+        For stubs, you can return torch.empty(0) or a uniform vector.
     """
-    food_logits: torch.Tensor            # [K] on CPU
-    food_class_id: int
-    food_class_name: str
-    food_conf: float
-    portion: float
-    top5_foods: List[Tuple[str, float]] = None  # [(name, prob), ...]
+    food_logits: torch.Tensor = field(default_factory=lambda: torch.empty(0))  # [K] on CPU (or empty)
+    food_class_id: int = -1
+    food_class_name: str = "unknown"
+    food_conf: float = 0.0
+    portion: float = 1.0
 
+    # [(name, prob), ...] always a list (never None)
+    top5_foods: List[Tuple[str, float]] = field(default_factory=list)
 
-# ---------- Physics head outputs (green block) ----------
-
+# ------------------- lvl 4 -------------------
 @dataclass
 class PhysicsOutput:
-    """Outputs of the Physics-Based Calorie Estimation block."""
-    area_px: float
-    volume: float
-    calories: float
+    """Outputs of the Physics-Based Calorie Estimation block.
 
+    Contract (always present, even for stubs):
+      - area_px
+      - volume
+      - calories
+      - kcal_per_volume_used (traceability)
+    """
+    area_px: int = 0
+    volume: float = float("nan")
+    calories: float = float("nan")
+    kcal_per_volume_used: float = 1.0
 
-# ---------- Data containers ----------
-
-@dataclass
-class InstanceInputs:
-    """What your future fusion module will consume."""
-    mask: np.ndarray                 # [H,W] bool
-    box_xyxy: np.ndarray             # [4]
-    score: float
-    class_id: int
-
-    # pooled backbone semantics (per scale)
-    pooled_feats: List[torch.Tensor] # each [C_i] on CPU
-
-    # pooled depth descriptor(s)
-    depth_median: float
-    depth_mean: float
-
-
+# ------------------- Full pipeline outputs -------------------
 @dataclass
 class InstanceOutputs:
     """What downstream heads / physics will consume."""
@@ -121,14 +112,13 @@ class InstanceOutputs:
     depth_median: float
     depth_mean: float
 
-
 @dataclass
 class PipelineOutput:
     instance_outputs: List[InstanceOutputs]
     depth_map: np.ndarray            # [H,W] float32
     backbone_features: List[torch.Tensor]  # raw feature maps [1,C,H,W] on GPU/CPU
 
-
+# ------------------- Configs -------------------
 @dataclass
 class DeviceConfig:
     device: str = "cuda"  # or "cpu"
