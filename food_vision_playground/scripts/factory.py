@@ -9,6 +9,7 @@ from scripts.lvl1.maskrcnn_torchvision import MaskRCNNTorchVisionBlock
 from scripts.lvl1.zoedepth import ZoeDepthBlock
 from scripts.lvl2.fusion_stub import FusionStub
 from scripts.lvl3.prediction_head_pretrained import PredictionHeadPretrainedCLIP
+from scripts.lvl3.prediction_head_finetuned import PredictionHeadFinetunedCLIPLinear
 from scripts.lvl4.physics_head_stub import PhysicsHeadStub
 
 
@@ -25,6 +26,9 @@ class PipelineFactoryConfig:
     density_by_name: Optional[Dict[str, float]] = None
     kcal_per_g_by_name: Optional[Dict[str, float]] = None
 
+    # Prediction Head
+    finetuned_clip_ckpt_path: str = "egypt_clip_linear.pt"
+
 def build_default_pipeline(cfg: PipelineFactoryConfig) -> Pipeline:
     """Build a fully-wired pipeline with explicit blocks (Option 1)."""
     backbone = EfficientNetBlock(
@@ -37,7 +41,12 @@ def build_default_pipeline(cfg: PipelineFactoryConfig) -> Pipeline:
     depth = ZoeDepthBlock(device=cfg.device)
 
     fusion = FusionStub()
-    pred_head = PredictionHeadPretrainedCLIP(device=cfg.device)
+
+    pred_head = PredictionHeadFinetunedCLIPLinear(
+        ckpt_path=cfg.finetuned_clip_ckpt_path,
+        device=cfg.device,
+    )
+
     phys_head = PhysicsHeadStub()
 
     return Pipeline(
