@@ -22,9 +22,8 @@ class PipelineFactoryConfig:
     backbone_out_indices: tuple = (1, 2, 3, 4)
 
     # Physics
-    kcal_per_volume_by_class: Optional[Dict[int, float]] = None
-    default_kcal_per_volume: float = 1.0
-
+    density_by_name: Optional[Dict[str, float]] = None
+    kcal_per_g_by_name: Optional[Dict[str, float]] = None
 
 def build_default_pipeline(cfg: PipelineFactoryConfig) -> Pipeline:
     """Build a fully-wired pipeline with explicit blocks (Option 1)."""
@@ -39,10 +38,7 @@ def build_default_pipeline(cfg: PipelineFactoryConfig) -> Pipeline:
 
     fusion = FusionStub()
     pred_head = PredictionHeadPretrainedCLIP(device=cfg.device)
-    phys_head = PhysicsHeadStub(
-        kcal_per_volume_by_class=cfg.kcal_per_volume_by_class,
-        default_kcal_per_volume=cfg.default_kcal_per_volume,
-    )
+    phys_head = PhysicsHeadStub()
 
     return Pipeline(
         backbone_block=backbone,
