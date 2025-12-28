@@ -1,5 +1,6 @@
 # Project-specific ignores
 food_vision_playground/runs/
+clip_finetune/data/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
