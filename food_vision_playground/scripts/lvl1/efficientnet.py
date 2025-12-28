@@ -97,12 +97,6 @@ class EfficientNetBlock:
         feats = self.model(x)
         return BackboneOutput(features=feats)
 
-    @staticmethod
-    def describe_features(out: BackboneOutput) -> None:
-        """Print feature map shapes (handy for sanity checks)."""
-        for i, f in enumerate(out.features):
-            print(f"Feature[{i}] shape={tuple(f.shape)} dtype={f.dtype} device={f.device}")
-
     @torch.inference_mode()
     def __call__(self, img_rgb_uint8: np.ndarray):
         if self.mode == "backbone":
