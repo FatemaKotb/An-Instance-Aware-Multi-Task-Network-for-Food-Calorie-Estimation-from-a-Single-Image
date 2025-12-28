@@ -10,6 +10,7 @@ from scripts.lvl1.zoedepth import ZoeDepthBlock
 from scripts.lvl2.fusion_stub import FusionStub
 from scripts.lvl3.prediction_head_pretrained import PredictionHeadPretrainedCLIP
 from scripts.lvl3.prediction_head_finetuned import PredictionHeadFinetunedCLIPLinear
+from scripts.lvl3.prediction_head_hybrid import PredictionHeadHybridCLIP
 from scripts.lvl4.physics_head_stub import PhysicsHeadStub
 
 
@@ -42,9 +43,17 @@ def build_default_pipeline(cfg: PipelineFactoryConfig) -> Pipeline:
 
     fusion = FusionStub()
 
-    pred_head = PredictionHeadFinetunedCLIPLinear(
+    food101_head = PredictionHeadPretrainedCLIP(device=cfg.device)
+
+    egypt_head = PredictionHeadFinetunedCLIPLinear(
         ckpt_path=cfg.finetuned_clip_ckpt_path,
         device=cfg.device,
+    )
+
+    pred_head = PredictionHeadHybridCLIP(
+        food101_head=food101_head,
+        egypt_head=egypt_head,
+        egypt_conf_thresh=0.25,
     )
 
     phys_head = PhysicsHeadStub()

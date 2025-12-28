@@ -197,15 +197,34 @@ def main() -> None:
                 portion = getattr(pred, "portion", None)
 
                 logger.info(
-                    f"top5_foods={getattr(pred, 'top5_foods', None)}\n"
-                    f"[{i}] score={inst.score:.3f} seg_class_id={inst.seg_class_id} "
-                    f"area_px={phys.area_px} "
-                    f"volume={_safe_float(phys.volume)} calories={_safe_float(phys.calories)} "
-                    f"food_class_id={food_class_id} food_class_name={food_class_name} food_conf={_safe_float(food_conf)} portion={_safe_float(portion)} "
+                    f"top5_foods={getattr(pred, 'top5_foods', None)}\n\n"
+
+                    f"area_px={phys.area_px}\n"
+                    f"volume={_safe_float(phys.volume)}\n"
+                    f"calories={_safe_float(phys.calories)}\n\n"
+
+                    f"food_class_id={food_class_id}\n" 
+                    f"food_class_name={food_class_name}\n" 
+                    f"food_conf={_safe_float(food_conf)}\n" 
+                    f"portion={_safe_float(portion)}\n\n"
                 )
 
-    logger.info("DONE: run_pipeline finished successfully.")
+            # Extra hybrid info (if present)
+            sel = getattr(pred, "hybrid_selected", None)
+            if sel is not None:
+                logger.info(f"hybrid_selected={sel}  egypt_conf_thresh={getattr(pred, 'egypt_conf_thresh', None)}\n")
 
+                logger.info(f"food101: conf={_safe_float(getattr(pred, 'food101_food_conf', None))} "
+                            f"name={getattr(pred, 'food101_food_class_name', None)}\n"
+                            f"top5={getattr(pred, 'food101_top5_foods', None)}\n\n")
+
+                logger.info(f"egypt:   conf={_safe_float(getattr(pred, 'egypt_food_conf', None))} "
+                            f"name={getattr(pred, 'egypt_food_class_name', None)}\n"
+                            f"top5={getattr(pred, 'egypt_top5_foods', None)}\n\n")
+
+
+                logger.info("DONE: run_pipeline finished successfully.")
+            
 
 if __name__ == "__main__":
     main()
