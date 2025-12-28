@@ -34,7 +34,7 @@ class PredictionHeadHybridCLIP:
         self,
         food101_head,
         egypt_head,
-        egypt_conf_thresh: float = 0.35,
+        egypt_conf_thresh: float = 0.20,
     ):
         self.food101_head = food101_head
         self.egypt_head = egypt_head

@@ -5,6 +5,7 @@ import argparse
 import logging
 import time
 import warnings
+import json
 from pathlib import Path
 
 import numpy as np
@@ -81,6 +82,32 @@ def ensure_uint8_rgb(img: np.ndarray) -> np.ndarray:
 
 def save_uint8_rgb(path: Path, img_rgb_uint8: np.ndarray) -> None:
     Image.fromarray(img_rgb_uint8).save(path)
+
+
+def _nan_to_none(x):
+    """Make floats JSON-safe (convert nan/inf/unparsable -> None)."""
+    try:
+        xf = float(x)
+        if np.isnan(xf) or np.isinf(xf):
+            return None
+        return xf
+    except Exception:
+        return None
+
+
+def _save_depth_png(path: Path, depth_hw: np.ndarray) -> None:
+    """Save a normalized depth PNG for quick visualization."""
+    d = depth_hw.astype(np.float32)
+    finite = np.isfinite(d)
+    if finite.any():
+        dmin = float(d[finite].min())
+        dmax = float(d[finite].max())
+        denom = (dmax - dmin) if (dmax > dmin) else 1.0
+        vis = 255.0 * (d - dmin) / denom
+        vis[~finite] = 0.0
+    else:
+        vis = np.zeros_like(d, dtype=np.float32)
+    Image.fromarray(np.clip(vis, 0, 255).astype(np.uint8)).save(path)
 
 
 def _safe_float(x) -> str:
@@ -168,17 +195,48 @@ def main() -> None:
         save_uint8_rgb(out_dir / "input.png", img)
         logger.info("Saved: input.png")
 
-        # Save segmentation masks overlay (best-effort)
-        try:
-            k = min(len(out.instance_outputs), 10)
-            pipe.seg_block.save_masks(out_dir, img, out.instance_outputs, topk=k)
-            logger.info(f"Saved: masks_overlay.png + top-{k} mask_*.png")
-        except Exception as e:
-            logger.warning(f"Mask saving skipped: {repr(e)}")
+        # NOTE: User-requested output policy
+        # - Do NOT save global masks_overlay.png / mask_*.png
+        # - Do NOT save global depth.npy / depth.png
+        # We only save per-instance masked RGB and per-instance depth maps.
 
-        # Save depth map (raw npy)
-        np.save(out_dir / "depth.npy", out.depth_map.astype(np.float32))
-        logger.info("Saved: depth.npy")
+        # Per-instance assets + JSON summary
+        inst_dir = out_dir / "instances"
+        inst_dir.mkdir(parents=True, exist_ok=True)
+
+        instances_json = []
+        for i, inst in enumerate(out.instance_outputs):
+            m = inst.mask.astype(bool)
+
+            # (1) masked RGB (mask * original)
+            masked_rgb = img.copy()
+            masked_rgb[~m] = 0
+            save_uint8_rgb(inst_dir / f"instance_{i:03d}_masked_rgb.png", masked_rgb)
+
+            # (2) masked depth for this instance (save both raw + viewable)
+            depth_masked = out.depth_map.astype(np.float32)
+            depth_masked = np.where(m, depth_masked, np.nan).astype(np.float32)
+            np.save(inst_dir / f"instance_{i:03d}_depth.npy", depth_masked.astype(np.float32))
+            _save_depth_png(inst_dir / f"instance_{i:03d}_depth.png", depth_masked.astype(np.float32))
+
+            pred = inst.prediction
+            instances_json.append(
+                {
+                    "instance_id": int(i),
+                    "food_class_name": str(getattr(pred, "food_class_name", "unknown")),
+                    "food_conf": _nan_to_none(getattr(pred, "food_conf", None)),
+                    "area_px": int(getattr(inst, "area_px", int(m.sum()))),
+                    "depth_median": _nan_to_none(getattr(inst, "depth_median", None)),
+                    "depth_mean": _nan_to_none(getattr(inst, "depth_mean", None)),
+                    "seg_score": _nan_to_none(getattr(inst, "score", None)),
+                }
+            )
+
+        (out_dir / "instances.json").write_text(
+            json.dumps(instances_json, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        logger.info(f"Saved: instances/ (assets) + instances.json (objects={len(instances_json)})")
 
     # ---- Per-instance summary ----
     with _Section(logger, "Per-instance summary"):
@@ -198,14 +256,12 @@ def main() -> None:
 
                 logger.info(
                     f"top5_foods={getattr(pred, 'top5_foods', None)}\n\n"
-
                     f"area_px={phys.area_px}\n"
                     f"volume={_safe_float(phys.volume)}\n"
                     f"calories={_safe_float(phys.calories)}\n\n"
-
-                    f"food_class_id={food_class_id}\n" 
-                    f"food_class_name={food_class_name}\n" 
-                    f"food_conf={_safe_float(food_conf)}\n" 
+                    f"food_class_id={food_class_id}\n"
+                    f"food_class_name={food_class_name}\n"
+                    f"food_conf={_safe_float(food_conf)}\n"
                     f"portion={_safe_float(portion)}\n\n"
                 )
 
@@ -214,17 +270,20 @@ def main() -> None:
             if sel is not None:
                 logger.info(f"hybrid_selected={sel}  egypt_conf_thresh={getattr(pred, 'egypt_conf_thresh', None)}\n")
 
-                logger.info(f"food101: conf={_safe_float(getattr(pred, 'food101_food_conf', None))} "
-                            f"name={getattr(pred, 'food101_food_class_name', None)}\n"
-                            f"top5={getattr(pred, 'food101_top5_foods', None)}\n\n")
+                logger.info(
+                    f"food101: conf={_safe_float(getattr(pred, 'food101_food_conf', None))} "
+                    f"name={getattr(pred, 'food101_food_class_name', None)}\n"
+                    f"top5={getattr(pred, 'food101_top5_foods', None)}\n\n"
+                )
 
-                logger.info(f"egypt:   conf={_safe_float(getattr(pred, 'egypt_food_conf', None))} "
-                            f"name={getattr(pred, 'egypt_food_class_name', None)}\n"
-                            f"top5={getattr(pred, 'egypt_top5_foods', None)}\n\n")
-
+                logger.info(
+                    f"egypt:   conf={_safe_float(getattr(pred, 'egypt_food_conf', None))} "
+                    f"name={getattr(pred, 'egypt_food_class_name', None)}\n"
+                    f"top5={getattr(pred, 'egypt_top5_foods', None)}\n\n"
+                )
 
                 logger.info("DONE: run_pipeline finished successfully.")
-            
+
 
 if __name__ == "__main__":
     main()

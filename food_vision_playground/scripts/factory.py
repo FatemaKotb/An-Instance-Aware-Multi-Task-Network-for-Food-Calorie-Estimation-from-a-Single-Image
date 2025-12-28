@@ -53,7 +53,6 @@ def build_default_pipeline(cfg: PipelineFactoryConfig) -> Pipeline:
     pred_head = PredictionHeadHybridCLIP(
         food101_head=food101_head,
         egypt_head=egypt_head,
-        egypt_conf_thresh=0.25,
     )
 
     phys_head = PhysicsHeadStub()
