@@ -66,6 +66,7 @@ class PredictionOutput:
     food_class_name: str
     food_conf: float
     portion: float
+    top5_foods: List[Tuple[str, float]] = None  # [(name, prob), ...]
 
 
 # ---------- Physics head outputs (green block) ----------
