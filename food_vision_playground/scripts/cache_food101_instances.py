@@ -146,7 +146,7 @@ def main() -> None:
 
             # depth
             depth_out = depth(img)
-            depth_hw = depth_out.depth_map.astype(np.float32)  # [H,W]
+            depth_hw = depth_out.depth.astype(np.float32)  # [H,W]
 
             # backbone features
             bb = backbone(img)
