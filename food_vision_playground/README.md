@@ -1,176 +1,56 @@
-# Food Vision Playground (Fusion + Heads Scaffold)
+# Food Vision Playground
 
-This repo is a clean, modular scaffold for an instance-level food pipeline:
+This project runs a full pipeline for food instance segmentation, depth estimation, food type prediction, and calorie estimation from a single RGB image.
 
-- **Backbone** extracts multi-scale features
-- **Segmenter** produces instance masks
-- **Depth** predicts a dense depth map
-- **Fusion** produces three explicit per-instance outputs: **Fi, fi, vi**
-- **Prediction Head (stub)** consumes fusion outputs to predict **food class + portion**
-- **Physics Head (stub)** consumes geometry + predicted class to compute **Area/Volume/Calories**
+## Pipeline overview (levels)
 
-The goal is to keep the pipeline runnable end-to-end now, while making it easy to swap stubs with real modules later.
+### Level 1 — Basic signals (computed directly from the image)
 
----
+#### 1A) Backbone (features)
+Extracts useful internal features from the image.
 
-## Blocks and Interfaces (Exact I/O)
+#### 1B) Segmentation (instance masks)
+Finds objects and returns a mask per detected instance.
 
-All dataclasses live in `scripts/dtypes.py`.
+#### 1C) Depth estimation
+Predicts a depth value for every pixel.
 
-### 1) EfficientNetBlock (Backbone mode)
-**File:** `scripts/efficientnet.py`  
-**Class:** `EfficientNetBlock(mode="backbone")`
+### Level 2 — Fusion (currently a stub)
+Combines backbone features + depth into a compact representation per instance.
 
-**Input**
-- `img_rgb_uint8`: `np.ndarray` of shape `[H, W, 3]`, dtype `uint8`
+### Level 3 — Prediction head (currently a stub + pretrained model)
+Predicts the food label for the instance. A stub that can be replaced with a learnable module later exists but is not used here; instead, a pretrained CLIP-based head is used.
 
-**Output**
-- `BackboneOutput`
-  - `features`: `List[torch.Tensor]`
-    - each tensor shape `[1, C_s, H_s, W_s]`
-    - typically multiple scales (e.g., 4 tensors)
+### Level 4 — Physics-based calories (rule-based)
+Estimates volume and calories from geometry + food label lookup.
 
----
 
-### 2) MaskRCNNTorchVisionBlock (Instance Segmentation)
-**File:** `scripts/maskrcnn_torchvision.py`  
-**Class:** `MaskRCNNTorchVisionBlock`
-
-**Input**
-- `img_rgb_uint8`: `np.ndarray [H, W, 3] uint8`
-- `score_thresh`: `float` (e.g., `0.5`)
-
-**Output**
-- `InstanceSegmentationResult`
-  - `boxes_xyxy`: `np.ndarray [N, 4]` (float)
-  - `scores`: `np.ndarray [N]` (float)
-  - `class_ids`: `np.ndarray [N]` (int) *(COCO ids)*
-  - `masks`: `np.ndarray [N, H, W]` (bool)
-
----
-
-### 3) ZoeDepthBlock (Monocular Depth)
-**File:** `scripts/zoedepth.py`  
-**Class:** `ZoeDepthBlock`
-
-**Input**
-- `img_rgb_uint8`: `np.ndarray [H, W, 3] uint8`
-
-**Output**
-- `DepthResult`
-  - `depth`: `np.ndarray [H, W] float32`
-
----
-
-### 4) FusionStub (Instance-Aware Fusion Stub)
-**File:** `scripts/fusion_stub.py`  
-**Class:** `FusionStub`
-
-Fusion produces the **three explicit outputs** shown in the diagram:
-
-- **Fi** = masked instance features (multi-scale)
-- **fi** = global pooled feature vector
-- **vi** = instance depth descriptor
-
-**Input**
-- `pooled_feats`: `List[torch.Tensor]`
-  - each tensor `[C_s]` (mask-pooled from backbone feature map `s`)
-  - stored on CPU
-- `depth_median`: `float`
-- `depth_mean`: `float`
-
-**Output**
-- `FusionOutput`
-  - `masked_features` (**Fi**): `List[torch.Tensor]` (each `[C_s]`)
-  - `global_features` (**fi**): `torch.Tensor [D]` (e.g., concatenation of Fi)
-  - `instance_depth` (**vi**): `torch.Tensor [2]` = `[depth_median, depth_mean]`
-
----
-
-### 5) Prediction Head Stub (Classification + Portion)
-**File:** `scripts/prediction_head_stub.py`  
-**Class:** `PredictionHeadStub`
-
-**Input**
-- `fusion`: `FusionOutput`
-  - uses at minimum: `fusion.global_features` (**fi**)
-  - may also use: `fusion.instance_depth` (**vi**) and/or `fusion.masked_features` (**Fi**)
-
-**Output**
-- `PredictionOutput`
-  - `food_class_id`: `int` *(stub may output a placeholder)*
-  - `food_confidence`: `float`
-  - `portion`: `float` *(stub value; later could be grams / bins / scalar)*
-
-> Note: in the *final* system, this head predicts food type from the fused embedding/features.
-> The COCO `class_ids` from segmentation are not food labels.
-
----
-
-### 6) Physics Head Stub (Area / Volume / Calories)
-**File:** `scripts/physics_head_stub.py`  
-**Class:** `PhysicsHeadStub`
-
-**Input**
-- `mask`: `np.ndarray [H, W] bool`
-- `depth_map`: `np.ndarray [H, W] float32`
-- `prediction`: `PredictionOutput` *(food class used for density lookup)*
-
-**Output**
-- `PhysicsOutput`
-  - `area_px`: `int` (Aᵢ in pixel units)
-  - `volume_proxy`: `float` (Vᵢ proxy, e.g., `area_px * depth_median`)
-  - `calories_proxy`: `float` (Cᵢ proxy using density table / default)
-
----
-
-### 7) Pipeline (Composed System)
-**File:** `scripts/pipeline.py`  
-**Class:** `Pipeline`
-
-**Input**
-- `img_rgb_uint8`: `np.ndarray [H, W, 3] uint8`
-
-**Output**
-- `PipelineOutput`
-  - `instance_outputs`: `List[InstanceOutputs]`
-  - `depth_map`: `np.ndarray [H, W] float32`
-  - `backbone_features`: `List[torch.Tensor]` (raw multi-scale maps)
-
-Each `InstanceOutputs` contains:
-- instance data: `mask`, `box_xyxy`, `score`
-- pooled geometry: `area_px`, `depth_median`, `depth_mean`
-- structured stage outputs:
-  - `fusion: FusionOutput`
-  - `prediction: PredictionOutput`
-  - `physics: PhysicsOutput`
-
----
-
-## End-to-End Dataflow Diagram (Mermaid)
-
-```mermaid
-flowchart LR
-  A["Input RGB image<br/>H x W x 3 uint8"] --> B["EfficientNetBlock<br/>mode: backbone"]
-  A --> S["MaskRCNNTorchVisionBlock"]
-  A --> D["ZoeDepthBlock"]
-
-  B -->|"BackboneOutput.features<br/>List of 1 x Cs x Hs x Ws"| P["Per-instance pooling<br/>mask-pool features + depth stats"]
-  S -->|"InstanceSegmentationResult<br/>masks, boxes, scores"| P
-  D -->|"DepthResult.depth<br/>H x W float32"| P
-
-  P -->|"pooled_feats + depth_median/mean"| F["FusionStub<br/>outputs Fi, fi, vi"]
-  F -->|"FusionOutput"| H["PredictionHeadStub<br/>food class + portion"]
-  H -->|"PredictionOutput"| X["PhysicsHeadStub<br/>area, volume, calories"]
-
-  F --> O["PipelineOutput"]
-  H --> O
-  X --> O
-````
-
-To run the full pipeline on an image:
+## How to run
 
 ```bash
 cd food_vision_playground
 python -m scripts.run_pipeline --image data/sample.jpg --seg_thresh 0.5
 ```
+
+
+## What gets saved in `runs/<image_stem>/` after running
+
+Typical outputs:
+
+* `input.png` (the input image)
+* `mask_###.png` (binary mask per instance)
+* `masks_overlay.png` (all masks drawn on the image)
+* `depth.npy` (depth map as a numpy array)
+
+
+## What gets logged to console during run
+* Detected instances + their predicted food labels + top-5 probabilities.
+* Estimated volume (in cm³) and calories (in kcal) per instance.
+* Total estimated calories for the image.
+
+## Design Decisions and next steps
+
+* The estimated depth here is relative depth (not absolute). To get any meaningful volume estimates, the model needs to be calibrated with a known reference object in the scene or any other method to convert relative depth to absolute depth.
+* The fusion module and prediction head are currently stubs or pretrained models. These should be replaced with learnable modules and trained end-to-end.
+* The physics-based calorie estimation relies on sample lookup tables containing very few entries for density and kcal/g values. Finding official nutrition databases with more comprehensive coverage would allow estimating calories for a wider variety of food items.
+* All the development here has been done while using a simple pizza image as input. Testing and validating the pipeline on more diverse and complex food images is necessary. And I am referring to food categories the current pretrained models can recognize as a starting point; I am not considering retraining or fine-tuning any models on new food categories at this time.
