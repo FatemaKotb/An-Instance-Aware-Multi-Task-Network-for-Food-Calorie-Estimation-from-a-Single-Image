@@ -26,6 +26,12 @@ FOOD101_CLASSES: List[str] = [
     "tuna_tartare","waffles",
 ]
 
+PROMPT_TEMPLATES: List[str] = [
+    "a photo of {}",
+    "a close-up photo of {}",
+    "a plate of {}",
+    "food: {}",
+]
 
 @dataclass
 class _CLIPBundle:
@@ -60,14 +66,14 @@ class PredictionHeadPretrainedCLIP:
         model_name="ViT-B-32-quickgelu",
         pretrained="openai",
         class_names: Optional[List[str]] = None,
-        prompt_template: str = "a photo of {}",
+        prompt_templates: Optional[List[str]] = None,
         apply_mask: bool = True,
     ):
         self.device = device
         self.model_name = model_name
         self.pretrained = pretrained
         self.class_names = class_names or FOOD101_CLASSES
-        self.prompt_template = prompt_template
+        self.prompt_templates = prompt_templates or PROMPT_TEMPLATES
         self.apply_mask = bool(apply_mask)
 
         self._bundle = self._load_clip()
@@ -89,11 +95,18 @@ class PredictionHeadPretrainedCLIP:
 
         model = model.to(self.device).eval()
 
-        # Precompute text embeddings for all classes
-        prompts = [self.prompt_template.format(name.replace('_', ' ')) for name in self.class_names]
+        # Precompute text embeddings for all classes with prompt ensembling
         with torch.inference_mode():
-            text = tokenizer(prompts).to(self.device)
-            text_features = model.encode_text(text)
+            all_text_feats = []
+            for tmpl in self.prompt_templates:
+                prompts = [tmpl.format(name.replace('_', ' ')) for name in self.class_names]
+                text = tokenizer(prompts).to(self.device)              # [K, ...]
+                tf = model.encode_text(text)                           # [K, D]
+                tf = tf / tf.norm(dim=-1, keepdim=True)                # normalize per prompt
+                all_text_feats.append(tf)
+
+            # [T, K, D] -> average over prompts -> [K, D]
+            text_features = torch.stack(all_text_feats, dim=0).mean(dim=0)
             text_features = text_features / text_features.norm(dim=-1, keepdim=True)
 
         return _CLIPBundle(model=model, preprocess=preprocess, tokenizer=tokenizer, text_features=text_features)
@@ -143,10 +156,16 @@ class PredictionHeadPretrainedCLIP:
         cls_id = int(cls.item())
         cls_name = self.class_names[cls_id] if 0 <= cls_id < len(self.class_names) else None
 
+        topk = 5
+        k = min(topk, probs.numel())
+        vals, idx = torch.topk(probs, k=k)
+        top5_foods = [(self.class_names[int(i)], float(v)) for v, i in zip(vals.detach().cpu(), idx.detach().cpu())]
+
         return PredictionOutput(
             food_logits=probs.detach().cpu(),
             food_class_id=cls_id,
             food_class_name=cls_name,
             food_conf=float(conf.item()),
             portion=1.0,
+            top5_foods=top5_foods,
         )
