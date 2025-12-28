@@ -1,0 +1,38 @@
+device=cpu seg_thresh=0.5
+format: <image_path> | top5=[c1, c2, c3, c4, c5] | best_inst_score=<score>
+
+== baba_ganoush ==
+data\baba_ganoush.jpg | top5=['panna_cotta', 'foie_gras', 'creme_brulee', 'scallops', 'apple_pie'] | best_inst_score=0.7888
+
+== baklava ==
+data\baklava.jpg | top5=['baklava', 'samosa', 'falafel', 'breakfast_burrito', 'guacamole'] | best_inst_score=0.9908
+
+== bamia ==
+data\bamia.jpg | top5=['beef_tartare', 'tuna_tartare', 'beef_carpaccio', 'paella', 'spaghetti_bolognese'] | best_inst_score=0.9503
+
+== basbousa ==
+data\basbousa.jpg | top5=['ravioli', 'gnocchi', 'steak', 'sashimi', 'mussels'] | best_inst_score=0.9004
+
+== bechamel_pasta ==
+data\bechamel_pasta.jpg | top5=[] | best_inst_score=nan
+
+== bessara ==
+data\bessara.jpg | top5=['bread_pudding', 'omelette', 'beef_tartare', 'garlic_bread', 'carrot_cake'] | best_inst_score=0.7608
+
+== egyptian_lentil_soup ==
+data\egyptian_lentil_soup.jpg | top5=['grilled_salmon', 'pork_chop', 'steak', 'hot_dog', 'sashimi'] | best_inst_score=0.9306
+
+== falafel ==
+data\falafel.jpg | top5=['falafel', 'crab_cakes', 'hummus', 'guacamole', 'beef_tartare'] | best_inst_score=0.9759
+
+== feteer_meshaltet ==
+data\feteer_meshaltet.jpg | top5=['apple_pie', 'french_onion_soup', 'samosa', 'foie_gras', 'baklava'] | best_inst_score=0.6521
+
+== ful_medames ==
+data\ful_medames.jpg | top5=['hummus', 'risotto', 'beef_tartare', 'tuna_tartare', 'bruschetta'] | best_inst_score=0.8631
+
+== kahk ==
+data\kahk.jpg | top5=['beignets', 'gnocchi', 'macarons', 'falafel', 'scallops'] | best_inst_score=0.9249
+
+== molokhia ==
+data\molokhia.png | top5=['creme_brulee', 'deviled_eggs', 'macaroni_and_cheese', 'eggs_benedict', 'omelette'] | best_inst_score=0.9970
