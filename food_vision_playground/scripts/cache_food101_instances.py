@@ -101,7 +101,7 @@ def main() -> None:
 
     # Food-101
     split = args.split
-    ds = Food101(root=args.food101_root, split=split, download=True)
+    ds = Food101(root=args.food101_root, split=split, download=False)
 
     # DataLoader over indices (we need image path + label)
     def collate(batch):
