@@ -5,7 +5,7 @@ import json
 import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, List, Sequence, Tuple, Optional
 
 import numpy as np
 import torch
@@ -14,6 +14,7 @@ from torch import nn
 from torch.cuda.amp import GradScaler, autocast
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
+from torchvision import transforms
 
 # -------------------------
 # Dataset / DataLoaders
@@ -48,7 +49,12 @@ def discover_items(data_root: str, class_names: Sequence[str]) -> List[Tuple[str
     return items
 
 
-def build_splits(items: Sequence[Tuple[str, int]], seed: int, val_ratio: float, test_ratio: float) -> Dict[str, List[int]]:
+def build_splits(
+    items: Sequence[Tuple[str, int]],
+    seed: int,
+    val_ratio: float,
+    test_ratio: float,
+) -> Dict[str, List[int]]:
     if val_ratio < 0 or test_ratio < 0 or (val_ratio + test_ratio) >= 1.0:
         raise ValueError("Invalid split ratios.")
     n = len(items)
@@ -62,8 +68,8 @@ def build_splits(items: Sequence[Tuple[str, int]], seed: int, val_ratio: float, 
 
     return {
         "train": idx[:n_train].tolist(),
-        "val": idx[n_train:n_train + n_val].tolist(),
-        "test": idx[n_train + n_val:].tolist(),
+        "val": idx[n_train : n_train + n_val].tolist(),
+        "test": idx[n_train + n_val :].tolist(),
     }
 
 
@@ -94,9 +100,57 @@ class FolderDishDataset(Dataset):
         return x, y
 
 
+def _infer_openclip_size(preprocess) -> int:
+    # Try to infer the expected input size from OpenCLIP preprocess.
+    size = 224
+    if hasattr(preprocess, "transforms"):
+        for t in preprocess.transforms:
+            if isinstance(t, transforms.CenterCrop):
+                if isinstance(t.size, (tuple, list)):
+                    size = int(t.size[0])
+                else:
+                    size = int(t.size)
+                break
+    return size
+
+
+def _extract_openclip_normalize(preprocess) -> transforms.Normalize:
+    if not hasattr(preprocess, "transforms"):
+        raise ValueError("Expected OpenCLIP preprocess to be a torchvision.transforms.Compose with .transforms.")
+    for t in preprocess.transforms:
+        if isinstance(t, transforms.Normalize):
+            return t
+    raise ValueError("Could not find torchvision.transforms.Normalize inside OpenCLIP preprocess.")
+
+
+def build_train_eval_transforms(openclip_preprocess):
+    """
+    Strong training augmentations + OpenCLIP normalization.
+
+    - Train: RandomResizedCrop + HFlip + ColorJitter + ToTensor + Normalize
+    - Eval:  OpenCLIP preprocess as-is
+    """
+    size = _infer_openclip_size(openclip_preprocess)
+    norm = _extract_openclip_normalize(openclip_preprocess)
+
+    train_tf = transforms.Compose(
+        [
+            transforms.RandomResizedCrop(size=size, scale=(0.70, 1.00), ratio=(0.85, 1.15)),
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.ColorJitter(brightness=0.20, contrast=0.20, saturation=0.20, hue=0.05),
+            transforms.ToTensor(),
+            norm,
+        ]
+    )
+
+    eval_tf = openclip_preprocess
+    return train_tf, eval_tf
+
+
 def build_dataloaders(
     data_root: str,
-    preprocess,
+    train_preprocess,
+    eval_preprocess,
     artifacts_dir: str,
     seed: int,
     val_ratio: float,
@@ -116,9 +170,9 @@ def build_dataloaders(
     val_paths = [items[i][0] for i in splits["val"]]
     test_paths = [items[i][0] for i in splits["test"]]
 
-    ds_train = FolderDishDataset(train_paths, path_to_class_id, preprocess)
-    ds_val = FolderDishDataset(val_paths, path_to_class_id, preprocess)
-    ds_test = FolderDishDataset(test_paths, path_to_class_id, preprocess)
+    ds_train = FolderDishDataset(train_paths, path_to_class_id, train_preprocess)
+    ds_val = FolderDishDataset(val_paths, path_to_class_id, eval_preprocess)
+    ds_test = FolderDishDataset(test_paths, path_to_class_id, eval_preprocess)
 
     dl_train = DataLoader(ds_train, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True)
     dl_val = DataLoader(ds_val, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
@@ -197,6 +251,17 @@ class TrainArgs:
     use_amp: bool
     ckpt_name: str
 
+    # augmentation controls (optional)
+    aug_scale_min: float = 0.70
+    aug_scale_max: float = 1.00
+    aug_ratio_min: float = 0.85
+    aug_ratio_max: float = 1.15
+    cj_brightness: float = 0.20
+    cj_contrast: float = 0.20
+    cj_saturation: float = 0.20
+    cj_hue: float = 0.05
+    hflip_p: float = 0.50
+
 
 def topk_correct(logits: torch.Tensor, y: torch.Tensor, k: int) -> int:
     k = min(k, logits.shape[1])
@@ -214,15 +279,40 @@ def train_eval(args: TrainArgs) -> Dict[str, float]:
     np.random.seed(args.seed)
 
     # Load CLIP
-    model, preprocess, tokenizer = load_openclip(args.model_name, args.pretrained, device)
+    model, openclip_preprocess, tokenizer = load_openclip(args.model_name, args.pretrained, device)
     model.eval()
     for p in model.parameters():
         p.requires_grad_(False)
 
+    # Build train/eval transforms (strong train aug)
+    size = _infer_openclip_size(openclip_preprocess)
+    norm = _extract_openclip_normalize(openclip_preprocess)
+
+    train_preprocess = transforms.Compose(
+        [
+            transforms.RandomResizedCrop(
+                size=size,
+                scale=(args.aug_scale_min, args.aug_scale_max),
+                ratio=(args.aug_ratio_min, args.aug_ratio_max),
+            ),
+            transforms.RandomHorizontalFlip(p=args.hflip_p),
+            transforms.ColorJitter(
+                brightness=args.cj_brightness,
+                contrast=args.cj_contrast,
+                saturation=args.cj_saturation,
+                hue=args.cj_hue,
+            ),
+            transforms.ToTensor(),
+            norm,
+        ]
+    )
+    eval_preprocess = openclip_preprocess
+
     # Data
     dl_train, dl_val, dl_test, class_names, splits = build_dataloaders(
         data_root=args.data_root,
-        preprocess=preprocess,
+        train_preprocess=train_preprocess,
+        eval_preprocess=eval_preprocess,
         artifacts_dir=args.artifacts_dir,
         seed=args.seed,
         val_ratio=args.val_ratio,
@@ -277,10 +367,7 @@ def train_eval(args: TrainArgs) -> Dict[str, float]:
             running_loss += float(loss.item()) * bs
             seen += bs
 
-            pbar.set_postfix({
-                "loss": f"{(running_loss/max(1,seen)):.4f}",
-                "step": f"{step}/{len(dl_train)}"
-            })
+            pbar.set_postfix({"loss": f"{(running_loss/max(1,seen)):.4f}", "step": f"{step}/{len(dl_train)}"})
 
         train_loss = running_loss / max(1, seen)
 
@@ -302,11 +389,13 @@ def train_eval(args: TrainArgs) -> Dict[str, float]:
                 correct1 += int((torch.argmax(logits, dim=1) == y).sum().item())
                 correct5 += topk_correct(logits, y, 5)
 
-                vbar.set_postfix({
-                    "acc1": f"{(correct1/max(1,total)):.4f}",
-                    "acc5": f"{(correct5/max(1,total)):.4f}",
-                    "step": f"{step}/{len(dl_val)}"
-                })
+                vbar.set_postfix(
+                    {
+                        "acc1": f"{(correct1/max(1,total)):.4f}",
+                        "acc5": f"{(correct5/max(1,total)):.4f}",
+                        "step": f"{step}/{len(dl_val)}",
+                    }
+                )
 
         val_acc1 = correct1 / max(1, total)
 
@@ -355,11 +444,9 @@ def train_eval(args: TrainArgs) -> Dict[str, float]:
             correct1 += int((torch.argmax(logits, dim=1) == y).sum().item())
             correct5 += topk_correct(logits, y, 5)
 
-            tbar.set_postfix({
-                "acc1": f"{(correct1/max(1,total)):.4f}",
-                "acc5": f"{(correct5/max(1,total)):.4f}",
-                "step": f"{step}/{len(dl_test)}"
-            })
+            tbar.set_postfix(
+                {"acc1": f"{(correct1/max(1,total)):.4f}", "acc5": f"{(correct5/max(1,total)):.4f}", "step": f"{step}/{len(dl_test)}"}
+            )
 
     linear_top1 = correct1 / max(1, total)
     linear_top5 = correct5 / max(1, total)
@@ -376,18 +463,16 @@ def train_eval(args: TrainArgs) -> Dict[str, float]:
             x = x.to(device, non_blocking=True)
             y = y.to(device, non_blocking=True)
 
-            img_features = encode_images(model, x)           # [B,D]
-            logits = img_features @ text_features.T          # [B,K]
+            img_features = encode_images(model, x)  # [B,D]
+            logits = img_features @ text_features.T  # [B,K]
 
             zs_total += int(y.numel())
             zs_correct1 += int((torch.argmax(logits, dim=1) == y).sum().item())
             zs_correct5 += topk_correct(logits, y, 5)
 
-            zbar.set_postfix({
-                "acc1": f"{(zs_correct1/max(1,zs_total)):.4f}",
-                "acc5": f"{(zs_correct5/max(1,zs_total)):.4f}",
-                "step": f"{step}/{len(dl_test)}"
-            })
+            zbar.set_postfix(
+                {"acc1": f"{(zs_correct1/max(1,zs_total)):.4f}", "acc5": f"{(zs_correct5/max(1,zs_total)):.4f}", "step": f"{step}/{len(dl_test)}"}
+            )
 
     zeroshot_top1 = zs_correct1 / max(1, zs_total)
     zeroshot_top5 = zs_correct5 / max(1, zs_total)
@@ -435,6 +520,18 @@ def parse_args() -> TrainArgs:
     p.add_argument("--epochs", type=int, default=10)
     p.add_argument("--use_amp", action="store_true")
     p.add_argument("--ckpt_name", type=str, default="egypt_clip_linear.pt")
+
+    # optional augmentation knobs (you can ignore and keep defaults)
+    p.add_argument("--aug_scale_min", type=float, default=0.70)
+    p.add_argument("--aug_scale_max", type=float, default=1.00)
+    p.add_argument("--aug_ratio_min", type=float, default=0.85)
+    p.add_argument("--aug_ratio_max", type=float, default=1.15)
+    p.add_argument("--cj_brightness", type=float, default=0.20)
+    p.add_argument("--cj_contrast", type=float, default=0.20)
+    p.add_argument("--cj_saturation", type=float, default=0.20)
+    p.add_argument("--cj_hue", type=float, default=0.05)
+    p.add_argument("--hflip_p", type=float, default=0.50)
+
     a = p.parse_args()
     return TrainArgs(
         data_root=a.data_root,
@@ -452,6 +549,15 @@ def parse_args() -> TrainArgs:
         epochs=a.epochs,
         use_amp=bool(a.use_amp),
         ckpt_name=a.ckpt_name,
+        aug_scale_min=a.aug_scale_min,
+        aug_scale_max=a.aug_scale_max,
+        aug_ratio_min=a.aug_ratio_min,
+        aug_ratio_max=a.aug_ratio_max,
+        cj_brightness=a.cj_brightness,
+        cj_contrast=a.cj_contrast,
+        cj_saturation=a.cj_saturation,
+        cj_hue=a.cj_hue,
+        hflip_p=a.hflip_p,
     )
 
 
