@@ -1,131 +1,31 @@
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\basbousa\000010.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bessara\000114.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\feteer_meshaltet\000027.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\basbousa\000011.png
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\baba_ganoush\000112.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\kahk\000089.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\egyptian_lentil_soup\000107.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\baba_ganoush\000006.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\ful_medames\000026.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\kahk\000037.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\molokhia\000078.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\egyptian_lentil_soup\000040.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\molokhia\000023.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bessara\000080.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bessara\000007.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bessara\000038.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\ful_medames\000019.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\feteer_meshaltet\000006.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\molokhia\000093.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bessara\000059.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bamia\000020.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bamia\000096.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bamia\000029.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bechamel_pasta\000055.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\ful_medames\000046.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\ful_medames\000031.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\kahk\000050.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\molokhia\000046.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\feteer_meshaltet\000010.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\kahk\000058.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\ful_medames\000028.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\basbousa\000045.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\ful_medames\000111.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bamia\000017.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\egyptian_lentil_soup\000089.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\egyptian_lentil_soup\000109.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bessara\000004.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bechamel_pasta\000030.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bechamel_pasta\000028.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bessara\000025.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\molokhia\000084.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\basbousa\000009.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\baba_ganoush\000086.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\molokhia\000104.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\ful_medames\000041.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\ful_medames\000012.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\baba_ganoush\000091.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\egyptian_lentil_soup\000003.png
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\kahk\000027.png
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\ful_medames\000091.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bamia\000114.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\kahk\000094.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\molokhia\000136.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bamia\000023.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\ful_medames\000015.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bessara\000056.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\baba_ganoush\000011.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\ful_medames\000076.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\kahk\000007.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\baba_ganoush\000083.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\kahk\000093.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\feteer_meshaltet\000002.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\baba_ganoush\000002.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\baba_ganoush\000043.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\ful_medames\000088.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\feteer_meshaltet\000031.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bamia\000092.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\baba_ganoush\000099.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bechamel_pasta\000086.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bechamel_pasta\000050.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\feteer_meshaltet\000004.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\egyptian_lentil_soup\000149.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\kahk\000060.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\feteer_meshaltet\000052.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\ful_medames\000096.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\molokhia\000064.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\ful_medames\000049.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bechamel_pasta\000041.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\molokhia\000025.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\basbousa\000035.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\feteer_meshaltet\000079.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\molokhia\000098.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\kahk\000010.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bechamel_pasta\000095.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\baba_ganoush\000059.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\molokhia\000037.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\feteer_meshaltet\000038.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bechamel_pasta\000023.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\baba_ganoush\000016.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\egyptian_lentil_soup\000027.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\feteer_meshaltet\000005.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\molokhia\000076.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\ful_medames\000054.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bamia\000044.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\kahk\000040.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bechamel_pasta\000038.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\egyptian_lentil_soup\000052.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\feteer_meshaltet\000030.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bechamel_pasta\000054.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\kahk\000118.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\ful_medames\000056.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\basbousa\000017.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\baba_ganoush\000035.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bechamel_pasta\000037.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bechamel_pasta\000087.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\feteer_meshaltet\000057.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bessara\000008.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\basbousa\000003.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\baba_ganoush\000050.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\feteer_meshaltet\000020.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bamia\000008.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\kahk\000025.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\ful_medames\000108.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\baba_ganoush\000042.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\feteer_meshaltet\000074.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bessara\000050.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\feteer_meshaltet\000037.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bechamel_pasta\000026.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\kahk\000013.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\molokhia\000080.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bechamel_pasta\000057.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bamia\000019.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\kahk\000115.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\egyptian_lentil_soup\000033.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\egyptian_lentil_soup\000152.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\feteer_meshaltet\000028.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\bamia\000048.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\kahk\000044.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\feteer_meshaltet\000058.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\ful_medames\000039.jpg
-D:\Post Grad\NN & DL\An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image\clip_finetune\data\Egyptian\ful_medames\000105.jpg
+/kaggle/input/egyptian-cuisine-five-classes/data/Egyptian/bamia/000015.jpg
+/kaggle/input/egyptian-cuisine-five-classes/data/Egyptian/ful_medames/000011.jpg
+/kaggle/input/egyptian-cuisine-five-classes/data/Egyptian/ful_medames/000002.jpg
+/kaggle/input/egyptian-cuisine-five-classes/data/Egyptian/baba_ganoush/000006.jpg
+/kaggle/input/egyptian-cuisine-five-classes/data/Egyptian/baba_ganoush/000046.jpg
+/kaggle/input/egyptian-cuisine-five-classes/data/Egyptian/bamia/000035.jpg
+/kaggle/input/egyptian-cuisine-five-classes/data/Egyptian/baba_ganoush/000119.jpg
+/kaggle/input/egyptian-cuisine-five-classes/data/Egyptian/bamia/000090.jpg
+/kaggle/input/egyptian-cuisine-five-classes/data/Egyptian/bamia/000037.jpg
+/kaggle/input/egyptian-cuisine-five-classes/data/Egyptian/baba_ganoush/000120.jpg
+/kaggle/input/egyptian-cuisine-five-classes/data/Egyptian/bechamel_pasta/000001.jpg
+/kaggle/input/egyptian-cuisine-five-classes/data/Egyptian/ful_medames/000023.jpg
+/kaggle/input/egyptian-cuisine-five-classes/data/Egyptian/egyptian_lentil_soup/000003.png
+/kaggle/input/egyptian-cuisine-five-classes/data/Egyptian/ful_medames/000054.jpg
+/kaggle/input/egyptian-cuisine-five-classes/data/Egyptian/bamia/000081.jpg
+/kaggle/input/egyptian-cuisine-five-classes/data/Egyptian/bechamel_pasta/000022.jpg
+/kaggle/input/egyptian-cuisine-five-classes/data/Egyptian/baba_ganoush/000097.jpg
+/kaggle/input/egyptian-cuisine-five-classes/data/Egyptian/baba_ganoush/000002.jpg
+/kaggle/input/egyptian-cuisine-five-classes/data/Egyptian/egyptian_lentil_soup/000048.jpg
+/kaggle/input/egyptian-cuisine-five-classes/data/Egyptian/bamia/000014.jpg
+/kaggle/input/egyptian-cuisine-five-classes/data/Egyptian/bamia/000018.jpg
+/kaggle/input/egyptian-cuisine-five-classes/data/Egyptian/bechamel_pasta/000006.jpg
+/kaggle/input/egyptian-cuisine-five-classes/data/Egyptian/egyptian_lentil_soup/000035.jpg
+/kaggle/input/egyptian-cuisine-five-classes/data/Egyptian/ful_medames/000003.jpg
+/kaggle/input/egyptian-cuisine-five-classes/data/Egyptian/baba_ganoush/000008.jpg
+/kaggle/input/egyptian-cuisine-five-classes/data/Egyptian/egyptian_lentil_soup/000001.jpg
+/kaggle/input/egyptian-cuisine-five-classes/data/Egyptian/ful_medames/000024.jpg
+/kaggle/input/egyptian-cuisine-five-classes/data/Egyptian/baba_ganoush/000036.jpg
+/kaggle/input/egyptian-cuisine-five-classes/data/Egyptian/bechamel_pasta/000003.jpg
+/kaggle/input/egyptian-cuisine-five-classes/data/Egyptian/ful_medames/000022.jpg
+/kaggle/input/egyptian-cuisine-five-classes/data/Egyptian/egyptian_lentil_soup/000068.jpg

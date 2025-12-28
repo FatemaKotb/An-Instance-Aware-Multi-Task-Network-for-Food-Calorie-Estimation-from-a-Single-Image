@@ -1,0 +1,13 @@
+{
+  "device_used": "cuda",
+  "num_classes": 5.0,
+  "num_train": 143.0,
+  "num_val": 31.0,
+  "num_test": 31.0,
+  "best_val_acc1": 0.5806451612903226,
+  "test_linear_top1": 0.6129032258064516,
+  "test_linear_top5": 1.0,
+  "test_zeroshot_top1": 0.6451612903225806,
+  "test_zeroshot_top5": 1.0,
+  "ckpt_path": "artifacts/ckpts/egypt_clip_linear.pt"
+}
