@@ -166,7 +166,7 @@ def main() -> None:
             # pil_img is PIL.Image.Image
             label = int(label)  # works for int or 0-d tensor
 
-            label = int(label.item())
+            label = int(label.item()) if hasattr(label, "item") else int(label)
 
             # Food101 keeps file list
             img_path = str(ds._image_files[img_i])
