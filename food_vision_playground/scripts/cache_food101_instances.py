@@ -372,7 +372,7 @@ def main() -> None:
     last_log_t = t0
     last_heartbeat = time.time()
 
-    pbar = tqdm(total=len(ds_subset), desc=f"cache[{args.split}] images", dynamic_ncols=True)
+    pbar = tqdm(total=len(ds_subset), desc=f"cache[{args.split}] images\n", dynamic_ncols=True)
 
     try:
         for sub_i, (pil_img, orig_label) in enumerate(dl):

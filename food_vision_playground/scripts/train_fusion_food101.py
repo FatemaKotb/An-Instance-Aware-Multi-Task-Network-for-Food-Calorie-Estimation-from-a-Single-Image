@@ -145,7 +145,7 @@ def main() -> None:
 
     for ep in range(1, int(args.epochs) + 1):
         model.train()
-        pbar = tqdm(dl_tr, desc=f"epoch {ep}/{args.epochs}", dynamic_ncols=True)
+        pbar = tqdm(dl_tr, desc=f"epoch {ep}/{args.epochs}\n", dynamic_ncols=True)
         running = 0.0
 
         for step, (roi_feat, mask_roi, depth_roi, depth_stats, y) in enumerate(pbar, start=1):
