@@ -3,8 +3,10 @@ import contextlib
 import io
 import json
 import os
+import random
 import sys
 import time
+from collections import defaultdict
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -40,8 +42,7 @@ def _build_inprocess_predictor() -> Callable[..., str]:
         import scripts.run_pipeline as rp  # type: ignore
     except Exception as e:
         raise RuntimeError(
-            "Could not import scripts.run_pipeline. Run from the project root "
-            "so `scripts/` is importable."
+            "Could not import scripts.run_pipeline. Run from the project root so `scripts/` is importable."
         ) from e
 
     # 1) Direct callable if present (best case).
@@ -132,13 +133,84 @@ def _build_inprocess_predictor() -> Callable[..., str]:
     return _predict_via_main
 
 
+def _select_per_class(
+    rels: list[str],
+    *,
+    per_class_limit: int,
+    per_class_frac: float,
+    seed: Optional[int],
+) -> list[str]:
+    """
+    rels are strings like 'class_name/xxxx'.
+
+    If per_class_limit > 0:
+      keep up to per_class_limit samples per class.
+
+    Else if per_class_frac in (0, 1]:
+      keep floor(frac * count) samples per class.
+
+    Sampling is deterministic if seed is provided (or 0), and applied per class.
+    """
+    if per_class_limit <= 0 and not (0.0 < per_class_frac <= 1.0):
+        return rels
+
+    by_cls: dict[str, list[str]] = defaultdict(list)
+    for r in rels:
+        cls = r.split("/", 1)[0]
+        by_cls[cls].append(r)
+
+    rng = random.Random(seed)
+
+    selected: list[str] = []
+    for cls in sorted(by_cls.keys()):
+        items = list(by_cls[cls])
+
+        # deterministic shuffle to avoid "first N from test.txt" bias
+        rng.shuffle(items)
+
+        if per_class_limit > 0:
+            k = min(per_class_limit, len(items))
+        else:
+            k = int(len(items) * per_class_frac)  # floor
+            k = max(1, k)  # avoid empty classes when frac is small but non-zero
+        selected.extend(items[:k])
+
+    return selected
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument("--food101_root", type=str, default=str(FOOD101_ROOT_DEFAULT))
     p.add_argument("--subset_meta", type=str, default=str(SUBSET_META_DEFAULT))
     p.add_argument("--fusion_ckpt", type=str, default=FUSION_CKPT_DEFAULT)
     p.add_argument("--topk", type=int, default=1)
-    p.add_argument("--limit", type=int, default=0, help="If > 0, evaluate only the first N filtered test images.")
+
+    p.add_argument(
+        "--limit",
+        type=int,
+        default=0,
+        help="If > 0, evaluate only the first N images after all filtering/sampling (global cap).",
+    )
+
+    p.add_argument(
+        "--per_class_limit",
+        type=int,
+        default=0,
+        help="If > 0, evaluate up to N images per class (after filtering to chosen classes).",
+    )
+    p.add_argument(
+        "--per_class_frac",
+        type=float,
+        default=0.0,
+        help="If in (0,1], evaluate floor(frac * count) images per class (ignored if --per_class_limit > 0).",
+    )
+    p.add_argument(
+        "--seed",
+        type=int,
+        default=0,
+        help="Seed used for per-class shuffling/sampling (deterministic).",
+    )
+
     p.add_argument("--print_every", type=int, default=10, help="Print running accuracy every N images (per mode).")
     p.add_argument(
         "--log_steps",
@@ -164,12 +236,36 @@ def main() -> None:
 
     rels = [line.strip() for line in test_txt.read_text().splitlines() if line.strip()]
     rels = [r for r in rels if r.split("/", 1)[0] in chosen]
+
+    # Per-class sampling first (to avoid ordering bias), then optional global limit.
+    rels = _select_per_class(
+        rels,
+        per_class_limit=int(args.per_class_limit),
+        per_class_frac=float(args.per_class_frac),
+        seed=int(args.seed) if args.seed is not None else None,
+    )
+
     if args.limit and args.limit > 0:
         rels = rels[: args.limit]
 
+    # Clean, minimal evaluator logs (no pipeline logs).
+    sample_desc = []
+    if args.per_class_limit and args.per_class_limit > 0:
+        sample_desc.append(f"per_class_limit={args.per_class_limit}")
+    elif 0.0 < float(args.per_class_frac) <= 1.0:
+        sample_desc.append(f"per_class_frac={args.per_class_frac:g}")
+    else:
+        sample_desc.append("per_class=ALL")
+
+    if args.limit and args.limit > 0:
+        sample_desc.append(f"global_limit={args.limit}")
+
+    sample_desc.append(f"seed={args.seed}")
+    print(f"[eval] images={len(rels)}  ({', '.join(sample_desc)})")
+
     predict = _build_inprocess_predictor()
 
-    results = {}
+    results: dict[str, float] = {}
     for mode in ["hybrid_clip", "fusion_head"]:
         correct = 0
         total = 0
