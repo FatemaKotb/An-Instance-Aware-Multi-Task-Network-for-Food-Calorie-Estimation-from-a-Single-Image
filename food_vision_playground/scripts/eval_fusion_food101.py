@@ -62,16 +62,22 @@ def main() -> None:
     ap.add_argument("--ckpt", type=str, required=True)
     ap.add_argument("--device", type=str, default="cuda")
     ap.add_argument("--batch_size", type=int, default=512)
+
     ap.add_argument("--num_workers", type=int, default=4)
     ap.add_argument("--prefetch_factor", type=int, default=4)
     ap.add_argument("--persistent_workers", action="store_true")
     ap.add_argument("--pin_memory", action="store_true")
     ap.add_argument("--shard_lru_size", type=int, default=8)
-    ap.add_argument("--split", type=str, choices=["train", "test"], default="test")
+
+    ap.add_argument("--split", type=str, choices=["val", "test"], default="test")
     args = ap.parse_args()
 
     cache_dir = Path(args.cache_dir)
-    index_path = cache_dir / f"index_{args.split}.jsonl"
+
+    if args.split == "val":
+        index_path = cache_dir / "index_val.jsonl"
+    else:
+        index_path = cache_dir / "index_test.jsonl"
     assert index_path.exists(), f"Missing {index_path}"
 
     ds = CachedInstancesDataset(str(index_path), shard_lru_size=args.shard_lru_size)
@@ -88,7 +94,9 @@ def main() -> None:
 
     ck = torch.load(args.ckpt, map_location="cpu")
     C = int(ck["in_channels"])
-    model = InstanceAwareFusionHead(in_channels=C, num_classes=101).to(args.device)
+    num_classes = int(ck["num_classes"])
+
+    model = InstanceAwareFusionHead(in_channels=C, num_classes=num_classes).to(args.device)
     model.load_state_dict(ck["state_dict"], strict=True)
     model.eval()
 
