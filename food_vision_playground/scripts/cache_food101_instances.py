@@ -9,7 +9,7 @@ from typing import Dict, List, Any, Set
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 from torchvision.datasets import Food101
 from torchvision.ops import roi_align
 from PIL import Image
@@ -55,6 +55,7 @@ def _depth_stats_from_mask(depth_hw: np.ndarray, mask_hw: np.ndarray) -> np.ndar
 
     We keep this as an 8-d vector, but we compute the key depth summaries
     (median/mean) using Pipeline’s own implementation for consistency.
+    Layout: [mean, std, mad, q10, q25, q50, q75, q90]
     """
     vals = depth_hw[mask_hw.astype(bool)].astype(np.float32)
     vals = vals[np.isfinite(vals)]
@@ -110,7 +111,7 @@ def _build_val_index_set(
     val_ratio: float,
     seed: int,
 ) -> Set[int]:
-    """Stratified train->val split over the chosen classes."""
+    """Stratified train->val split over the chosen classes (indices are ORIGINAL ds indices)."""
     rng = np.random.RandomState(int(seed))
     by_class: Dict[int, List[int]] = {}
     for i, y in enumerate(labels):
@@ -118,7 +119,7 @@ def _build_val_index_set(
             by_class.setdefault(y, []).append(i)
 
     val_set: Set[int] = set()
-    for y, idxs in by_class.items():
+    for _, idxs in by_class.items():
         idxs = np.array(idxs, dtype=np.int64)
         rng.shuffle(idxs)
         n_val = int(round(float(val_ratio) * float(len(idxs))))
@@ -150,11 +151,11 @@ def main() -> None:
     # instance selection
     ap.add_argument("--seg_thresh", type=float, default=0.5)
 
-    # IMPORTANT: these are now fed into MaskRCNNTorchVisionBlock (single source of truth)
-    ap.add_argument("--min_mask_area_ratio", type=float, default=0.20)   # drop masks < this % of image
-    ap.add_argument("--iou_dup_thresh", type=float, default=0.70)        # IoU >= -> duplicate
-    ap.add_argument("--contain_thresh", type=float, default=0.97)        # containment >= -> redundant/union logic
-    ap.add_argument("--union_area_ratio", type=float, default=1.00)      # big mask considered union if >= ratio
+    # IMPORTANT: these are fed into MaskRCNNTorchVisionBlock (single source of truth)
+    ap.add_argument("--min_mask_area_ratio", type=float, default=0.20)
+    ap.add_argument("--iou_dup_thresh", type=float, default=0.70)
+    ap.add_argument("--contain_thresh", type=float, default=0.97)
+    ap.add_argument("--union_area_ratio", type=float, default=1.00)
 
     ap.add_argument("--keep_largest_only", action="store_true", help="Use only the largest mask per image.")
     ap.add_argument("--max_instances_per_image", type=int, default=3)
@@ -248,7 +249,7 @@ def main() -> None:
     all_class_names: List[str] = list(ds.classes)
     print(f"[data] loaded: total_images={len(ds)} classes={len(all_class_names)}")
 
-    # subset selection
+    # subset selection (class list)
     chosen_orig = _choose_k_classes(all_class_names, k=int(args.k_classes), seed=int(args.class_seed))
     chosen_orig_set = set(chosen_orig)
     orig_to_new = {orig: new for new, orig in enumerate(chosen_orig)}
@@ -259,6 +260,17 @@ def main() -> None:
     for new_label, name in enumerate(chosen_names):
         print(f"  [{new_label:02d}] {name}")
 
+    # Get labels list for building indices / val split (ORIGINAL ds indices)
+    if hasattr(ds, "targets"):
+        labels_list = [int(x) for x in list(ds.targets)]
+    else:
+        labels_list = [int(x) for x in list(ds._labels)]  # type: ignore[attr-defined]
+
+    # Build subset indices so we DO NOT iterate over all 75,750 images
+    subset_indices = [i for i, y in enumerate(labels_list) if y in chosen_orig_set]
+    print(f"[subset] keeping images from chosen classes only: {len(subset_indices)}/{len(ds)}")
+
+    # Write subset metadata (record exact seg params used)
     subset_meta_path = out_dir / "subset_meta.json"
     subset_meta = {
         "k_classes": int(args.k_classes),
@@ -272,44 +284,42 @@ def main() -> None:
         "backbone_model_name": args.backbone_model_name,
         "backbone_out_indices": list(out_indices),
         "seg_thresh": float(args.seg_thresh),
-
-        # record the EXACT seg block params used (single source of truth)
         "min_mask_area_ratio": float(args.min_mask_area_ratio),
         "iou_dup_thresh": float(args.iou_dup_thresh),
         "contain_thresh": float(args.contain_thresh),
         "union_area_ratio": float(args.union_area_ratio),
-
         "keep_largest_only": bool(args.keep_largest_only),
         "max_instances_per_image": int(args.max_instances_per_image),
     }
     subset_meta_path.write_text(json.dumps(subset_meta, indent=2), encoding="utf-8")
     print(f"[subset] wrote {subset_meta_path}")
 
-    # val split (train only)
+    # val split (train only) computed over ORIGINAL indices, but only meaningful on the chosen K
     print("[split] preparing val split (if split=train)...")
     val_index_set: Set[int] = set()
     if args.split == "train" and float(args.val_ratio) > 0:
-        if hasattr(ds, "targets"):
-            labels_list = list(ds.targets)
-        else:
-            labels_list = list(ds._labels)  # type: ignore[attr-defined]
         val_index_set = _build_val_index_set(
             labels=labels_list,
             chosen_orig_labels=chosen_orig_set,
             val_ratio=float(args.val_ratio),
             seed=int(args.split_seed),
         )
-        print(f"[split] val_images={len(val_index_set)} (indices over full train split)")
+        # Report how many of the SUBSET will be val
+        val_in_subset = sum(1 for i in subset_indices if i in val_index_set)
+        print(f"[split] val_ratio={args.val_ratio} -> val_images_in_subset={val_in_subset}/{len(subset_indices)}")
     else:
         print("[split] no val split")
+
+    # Build ds subset so dataloader is small and tqdm total is small
+    ds_subset = Subset(ds, subset_indices)
 
     # dataloader (avoid PIL collation issues with workers)
     def _collate_one(batch):
         return batch[0]  # (PIL.Image, int)
 
-    print("[data] building DataLoader...")
+    print("[data] building DataLoader over ds_subset...")
     dl = DataLoader(
-        ds,
+        ds_subset,
         batch_size=1,
         shuffle=False,
         num_workers=args.num_workers,
@@ -320,7 +330,7 @@ def main() -> None:
     )
     print(
         "[data] DataLoader ready "
-        f"(workers={args.num_workers}, pin_memory={bool(args.pin_memory)}, "
+        f"(subset_images={len(ds_subset)}, workers={args.num_workers}, pin_memory={bool(args.pin_memory)}, "
         f"prefetch_factor={args.prefetch_factor}, persistent_workers={bool(args.persistent_workers)})"
     )
 
@@ -362,24 +372,20 @@ def main() -> None:
     last_log_t = t0
     last_heartbeat = time.time()
 
-    pbar = tqdm(total=len(ds), desc=f"cache[{args.split}] images", dynamic_ncols=True)
+    pbar = tqdm(total=len(ds_subset), desc=f"cache[{args.split}] images", dynamic_ncols=True)
 
     try:
-        for img_i, (pil_img, orig_label) in enumerate(dl):
+        for sub_i, (pil_img, orig_label) in enumerate(dl):
+            # Recover ORIGINAL index in the underlying Food101 dataset
+            img_i = subset_indices[sub_i]
+
+            # label can be int or 0-d tensor depending on env
             orig_label = int(orig_label) if not hasattr(orig_label, "item") else int(orig_label.item())
 
-            # filter to chosen K classes
+            # Now that we're using ds_subset, this should always be true, but keep as safety.
             if orig_label not in chosen_orig_set:
                 processed_images += 1
                 pbar.update(1)
-                now = time.time()
-                if now - last_heartbeat >= float(args.heartbeat_every):
-                    elapsed = now - t0
-                    print(
-                        f"[heartbeat] images={processed_images}/{len(ds)} "
-                        f"instances={wrote_instances} elapsed_min={elapsed/60:.1f}"
-                    )
-                    last_heartbeat = now
                 continue
 
             new_label = int(orig_to_new[orig_label])
@@ -401,6 +407,14 @@ def main() -> None:
             if masks.shape[0] == 0:
                 processed_images += 1
                 pbar.update(1)
+                now = time.time()
+                if now - last_heartbeat >= float(args.heartbeat_every):
+                    elapsed = now - t0
+                    print(
+                        f"[heartbeat] images={processed_images}/{len(ds_subset)} "
+                        f"instances={wrote_instances} elapsed_min={elapsed/60:.1f}"
+                    )
+                    last_heartbeat = now
                 continue
 
             # depth (your existing class)
@@ -449,16 +463,15 @@ def main() -> None:
 
                 # richer stats for head; overwrite mean/median to match pipeline exactly
                 d_stats = _depth_stats_from_mask(depth_hw, m.astype(bool))
-                # d_stats layout: [mean, std, mad, q10, q25, q50, q75, q90]
-                d_stats[0] = float(d_mean)
-                d_stats[5] = float(d_med)
+                d_stats[0] = float(d_mean)  # mean
+                d_stats[5] = float(d_med)   # median (q50)
 
                 shard_items[bucket].append(
                     {
                         "roi_feat": roi_feat_cpu,  # float16 [C,7,7]
-                        "mask_roi": torch.from_numpy(mask_roi[None, ...].astype(np.float32)),    # [1,7,7]
-                        "depth_roi": torch.from_numpy(depth_roi[None, ...].astype(np.float32)),  # [1,7,7]
-                        "depth_stats": torch.from_numpy(d_stats.astype(np.float32)),            # [8]
+                        "mask_roi": torch.from_numpy(mask_roi[None, ...].astype(np.float32)),     # [1,7,7]
+                        "depth_roi": torch.from_numpy(depth_roi[None, ...].astype(np.float32)),   # [1,7,7]
+                        "depth_stats": torch.from_numpy(d_stats.astype(np.float32)),              # [8]
                         "label": torch.tensor(new_label, dtype=torch.long),
                         "orig_label": int(orig_label),
                         "class_name": class_name,
@@ -497,7 +510,7 @@ def main() -> None:
             if now - last_heartbeat >= float(args.heartbeat_every):
                 elapsed = now - t0
                 print(
-                    f"[heartbeat] images={processed_images}/{len(ds)} "
+                    f"[heartbeat] images={processed_images}/{len(ds_subset)} "
                     f"instances={wrote_instances} elapsed_min={elapsed/60:.1f}"
                 )
                 last_heartbeat = now
