@@ -162,7 +162,7 @@ def main() -> None:
     ap.add_argument("--shard_size", type=int, default=5000, help="Instances per shard file (reduces I/O).")
 
     # logging
-    ap.add_argument("--log_every", type=int, default=50, help="Log every N images.")
+    ap.add_argument("--log_every", type=int, default=10, help="Log every N images.")
     args = ap.parse_args()
 
     out_dir = Path(args.out_dir)
