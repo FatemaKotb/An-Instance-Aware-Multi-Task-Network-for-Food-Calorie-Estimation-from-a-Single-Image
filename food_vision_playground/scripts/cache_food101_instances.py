@@ -200,7 +200,7 @@ def main() -> None:
                 f_index.write(json.dumps(rec.__dict__, ensure_ascii=False) + "\n")
                 wrote += 1
 
-            if (batch_idx + 1) % 500 == 0:
+            if (batch_idx + 1) % 100 == 0:
                 print(f"[{split}] processed {batch_idx+1}/{len(ds)} images, wrote {wrote} instances")
 
     print(f"Done. Wrote {wrote} cached instances to {out_dir} and index {index_path}")

@@ -89,7 +89,7 @@ def main() -> None:
     opt = AdamW(model.parameters(), lr=float(args.lr), weight_decay=1e-2)
     ce = nn.CrossEntropyLoss()
 
-    log_every = 200  # steps
+    log_every = 100  # steps
 
     global_step = 0
 
