@@ -5,7 +5,7 @@ import json
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Any, Set, Tuple
+from typing import Dict, List, Any, Set
 
 import numpy as np
 import torch
@@ -89,13 +89,10 @@ def _save_shard(shard_path: Path, items: List[Dict[str, Any]]) -> None:
     torch.save(items, shard_path)
 
 
-def _choose_k_classes(
-    all_classes: List[str],
-    k: int,
-    seed: int,
-) -> List[int]:
+def _choose_k_classes(all_classes: List[str], k: int, seed: int) -> List[int]:
     """
     Deterministic class subset selection: shuffle class indices with seed, take first K.
+    Returns sorted original class indices.
     """
     rng = np.random.RandomState(int(seed))
     idx = np.arange(len(all_classes))
@@ -111,7 +108,7 @@ def _build_val_index_set(
     seed: int,
 ) -> Set[int]:
     """
-    For the TRAIN split only: build a set of global image indices that go to VAL,
+    For TRAIN split only: build a set of global image indices that go to VAL,
     stratified per chosen class (deterministic).
     """
     rng = np.random.RandomState(int(seed))
@@ -163,32 +160,62 @@ def main() -> None:
 
     # logging
     ap.add_argument("--log_every", type=int, default=10, help="Log every N images.")
+    ap.add_argument("--heartbeat_every", type=float, default=30.0, help="Print heartbeat every N seconds.")
     args = ap.parse_args()
 
     out_dir = Path(args.out_dir)
     shards_dir = out_dir / "shards"
     shards_dir.mkdir(parents=True, exist_ok=True)
 
-    # --- frozen blocks ---
-    backbone = EfficientNetBlock(mode="backbone", device=args.device)
-    seg = MaskRCNNTorchVisionBlock(device=args.device)
-    depth = ZoeDepthBlock(device=args.device)
+    # ------------------------------------------------------------
+    # Init logs (so terminal never looks frozen before loop starts)
+    # ------------------------------------------------------------
+    print(f"[start] split={args.split} device={args.device}")
+    print(f"[start] out_dir={out_dir}")
+    print(f"[start] food101_root={args.food101_root}")
 
-    # dataset
+    print("[init] building frozen blocks...")
+    t_init = time.time()
+
+    print("[init] backbone...")
+    t = time.time()
+    backbone = EfficientNetBlock(mode="backbone", device=args.device)
+    print(f"[init] backbone done in {time.time() - t:.1f}s")
+
+    print("[init] segmentation...")
+    t = time.time()
+    seg = MaskRCNNTorchVisionBlock(device=args.device)
+    print(f"[init] segmentation done in {time.time() - t:.1f}s")
+
+    print("[init] depth...")
+    t = time.time()
+    depth = ZoeDepthBlock(device=args.device)
+    print(f"[init] depth done in {time.time() - t:.1f}s")
+
+    print(f"[init] all blocks done in {time.time() - t_init:.1f}s")
+
+    # ----------------
+    # dataset + subset
+    # ----------------
+    print("[data] loading Food101 dataset...")
     root = _maybe_fix_food101_root(Path(args.food101_root))
+    print(f"[data] resolved root={root}")
     ds = Food101(root=str(root), split=args.split, download=False)
     all_class_names: List[str] = list(ds.classes)
+    print(f"[data] loaded Food101: total_images={len(ds)} num_classes={len(all_class_names)}")
 
-    # choose K classes (orig labels)
+    print(f"[subset] choosing K={args.k_classes} classes with seed={args.class_seed}...")
     chosen_orig = _choose_k_classes(all_class_names, k=int(args.k_classes), seed=int(args.class_seed))
     chosen_orig_set = set(chosen_orig)
-
-    # map orig label -> new label [0..K-1]
     orig_to_new = {orig: new for new, orig in enumerate(chosen_orig)}
     new_to_orig = {v: k for k, v in orig_to_new.items()}
     chosen_names = [all_class_names[i] for i in chosen_orig]
 
-    # write subset metadata once (shared by train/test)
+    print("[subset] chosen class names (new_label -> name):")
+    for new_label, name in enumerate(chosen_names):
+        print(f"  [{new_label:02d}] {name}")
+
+    print("[subset] writing subset_meta.json ...")
     subset_meta_path = out_dir / "subset_meta.json"
     subset_meta = {
         "k_classes": int(args.k_classes),
@@ -201,27 +228,34 @@ def main() -> None:
         "val_ratio": float(args.val_ratio),
     }
     subset_meta_path.write_text(json.dumps(subset_meta, indent=2), encoding="utf-8")
+    print(f"[subset] wrote {subset_meta_path}")
 
-    # build VAL set only for split=train
+    print("[split] preparing train/val index set (only if split=train)...")
     val_index_set: Set[int] = set()
     if args.split == "train" and float(args.val_ratio) > 0:
-        # Food101 keeps labels internally; different torchvision versions use different names.
-        # We rely on dataset.targets if present; fallback to private _labels.
         if hasattr(ds, "targets"):
             labels_list = list(ds.targets)
         else:
             labels_list = list(ds._labels)  # type: ignore[attr-defined]
+
         val_index_set = _build_val_index_set(
             labels=labels_list,
             chosen_orig_labels=chosen_orig_set,
             val_ratio=float(args.val_ratio),
             seed=int(args.split_seed),
         )
+        print(f"[split] val_ratio={args.val_ratio} -> val_images={len(val_index_set)} (over full train split indices)")
+    else:
+        print("[split] no val split (split=test or val_ratio=0)")
 
+    # ------------
+    # DataLoader
+    # ------------
     def _collate_one(batch):
         # batch size is 1: [(PIL.Image, label_int)]
         return batch[0]
 
+    print("[data] building DataLoader...")
     dl = DataLoader(
         ds,
         batch_size=1,
@@ -232,8 +266,15 @@ def main() -> None:
         prefetch_factor=args.prefetch_factor if args.num_workers > 0 else None,
         persistent_workers=bool(args.persistent_workers) if args.num_workers > 0 else False,
     )
+    print(
+        "[data] DataLoader ready "
+        f"(num_workers={args.num_workers}, pin_memory={bool(args.pin_memory)}, "
+        f"prefetch_factor={args.prefetch_factor}, persistent_workers={bool(args.persistent_workers)})"
+    )
 
-    # output indices for this run
+    # ----------------------
+    # Output index files
+    # ----------------------
     if args.split == "train":
         index_paths = {
             "train": out_dir / "index_train.jsonl",
@@ -244,29 +285,63 @@ def main() -> None:
             "test": out_dir / "index_test.jsonl",
         }
 
-    # open all index files
-    f_index = {k: p.open("w", encoding="utf-8") for k, p in index_paths.items()}
+    print("[io] opening index files:")
+    for k, p in index_paths.items():
+        print(f"  - {k}: {p}")
 
-    # separate shard buffers per split-name
+    f_index = {k: p.open("w", encoding="utf-8") for k, p in index_paths.items()}
     shard_items: Dict[str, List[Dict[str, Any]]] = {k: [] for k in index_paths.keys()}
     shard_id: Dict[str, int] = {k: 0 for k in index_paths.keys()}
 
+    # -----------
+    # Warmup
+    # -----------
+    print("[warmup] running 1 dummy forward for seg/depth/backbone (to avoid long first-iteration silence)...")
+    dummy = np.zeros((384, 512, 3), dtype=np.uint8)
+
+    t = time.time()
+    _ = seg(dummy, score_thresh=float(args.seg_thresh))
+    print(f"[warmup] seg done in {time.time() - t:.1f}s")
+
+    t = time.time()
+    _ = depth(dummy)
+    print(f"[warmup] depth done in {time.time() - t:.1f}s")
+
+    t = time.time()
+    _ = backbone(dummy)
+    print(f"[warmup] backbone done in {time.time() - t:.1f}s")
+    print("[warmup] done. entering main loop...")
+
+    # ------------------------
+    # Main caching loop
+    # ------------------------
     processed_images = 0
     wrote_instances = 0
 
     t0 = time.time()
     last_log_t = t0
+    last_heartbeat = time.time()
 
     pbar = tqdm(total=len(ds), desc=f"cache[{args.split}] images", dynamic_ncols=True)
 
     try:
         for img_i, (pil_img, orig_label) in enumerate(dl):
-            orig_label = int(orig_label)
+            # keep robust for int / 0-d tensor
+            orig_label = int(orig_label) if not hasattr(orig_label, "item") else int(orig_label.item())
 
             # filter to chosen K classes
             if orig_label not in chosen_orig_set:
                 processed_images += 1
                 pbar.update(1)
+                # heartbeat even on skipped items
+                now = time.time()
+                if now - last_heartbeat >= float(args.heartbeat_every):
+                    elapsed = now - t0
+                    print(
+                        f"[heartbeat] images={processed_images}/{len(ds)} "
+                        f"instances={wrote_instances} elapsed_min={elapsed/60:.1f}"
+                    )
+                    last_heartbeat = now
                 continue
 
             new_label = int(orig_to_new[orig_label])
@@ -292,6 +367,14 @@ def main() -> None:
             if masks.shape[0] == 0:
                 processed_images += 1
                 pbar.update(1)
+                now = time.time()
+                if now - last_heartbeat >= float(args.heartbeat_every):
+                    elapsed = now - t0
+                    print(
+                        f"[heartbeat] images={processed_images}/{len(ds)} "
+                        f"instances={wrote_instances} elapsed_min={elapsed/60:.1f}"
+                    )
+                    last_heartbeat = now
                 continue
 
             # guaranteed removal of tiny masks relative to image size
@@ -301,6 +384,14 @@ def main() -> None:
             if masks.shape[0] == 0:
                 processed_images += 1
                 pbar.update(1)
+                now = time.time()
+                if now - last_heartbeat >= float(args.heartbeat_every):
+                    elapsed = now - t0
+                    print(
+                        f"[heartbeat] images={processed_images}/{len(ds)} "
+                        f"instances={wrote_instances} elapsed_min={elapsed/60:.1f}"
+                    )
+                    last_heartbeat = now
                 continue
 
             # depth
@@ -346,7 +437,7 @@ def main() -> None:
                         "mask_roi": torch.from_numpy(mask_roi[None, ...].astype(np.float32)),
                         "depth_roi": torch.from_numpy(depth_roi[None, ...].astype(np.float32)),
                         "depth_stats": torch.from_numpy(d_stats),
-                        "label": torch.tensor(new_label, dtype=torch.long),      # NEW label
+                        "label": torch.tensor(new_label, dtype=torch.long),
                         "orig_label": int(orig_label),
                         "class_name": class_name,
                     }
@@ -373,6 +464,7 @@ def main() -> None:
             processed_images += 1
             pbar.update(1)
 
+            # log_every-based rate logging
             if (processed_images % int(args.log_every)) == 0:
                 now = time.time()
                 dt = now - last_log_t
@@ -381,7 +473,18 @@ def main() -> None:
                 pbar.set_postfix(instances=wrote_instances, img_s=f"{ips:.2f}", elapsed_min=f"{elapsed/60:.1f}")
                 last_log_t = now
 
+            # time-based heartbeat (even if log_every hasn't fired)
+            now = time.time()
+            if now - last_heartbeat >= float(args.heartbeat_every):
+                elapsed = now - t0
+                print(
+                    f"[heartbeat] images={processed_images}/{len(ds)} "
+                    f"instances={wrote_instances} elapsed_min={elapsed/60:.1f}"
+                )
+                last_heartbeat = now
+
         # flush remaining shards
+        print("[io] flushing remaining shard buffers...")
         for bucket, items in shard_items.items():
             if items:
                 shard_path = shards_dir / f"{bucket}_shard{shard_id[bucket]:04d}.pt"
@@ -393,11 +496,11 @@ def main() -> None:
         for f in f_index.values():
             f.close()
 
-    print(f"Subset meta: {subset_meta_path}")
-    print(f"Done. processed_images={processed_images} wrote_instances={wrote_instances}")
+    print(f"[done] Subset meta: {subset_meta_path}")
+    print(f"[done] processed_images={processed_images} wrote_instances={wrote_instances}")
     for k, p in index_paths.items():
-        print(f"Index[{k}]: {p}")
-    print(f"Shards: {shards_dir}")
+        print(f"[done] Index[{k}]: {p}")
+    print(f"[done] Shards: {shards_dir}")
 
 
 if __name__ == "__main__":
