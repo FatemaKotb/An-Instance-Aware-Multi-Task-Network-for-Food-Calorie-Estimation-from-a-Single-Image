@@ -96,7 +96,6 @@ def _save_shard(shard_path: Path, items: List[Dict[str, Any]]) -> None:
     shard_path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(items, shard_path)
 
-
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--food101_root", type=str, default=".", help="Root where Food101 is stored (download=False).")
@@ -135,12 +134,16 @@ def main() -> None:
     root = _maybe_fix_food101_root(Path(args.food101_root))
     ds = Food101(root=str(root), split=split, download=False)
 
-    # NOTE: we keep batch_size=1 because your blocks accept single images.
+    def _collate_one(batch):
+        # batch is a list of length 1: [(PIL.Image, label)]
+        return batch[0]
+
     dl = DataLoader(
         ds,
         batch_size=1,
         shuffle=False,
         num_workers=args.num_workers,
+        collate_fn=_collate_one,          # ✅ fix
         pin_memory=bool(args.pin_memory),
         prefetch_factor=args.prefetch_factor if args.num_workers > 0 else None,
         persistent_workers=bool(args.persistent_workers) if args.num_workers > 0 else False,
@@ -160,7 +163,9 @@ def main() -> None:
 
     with index_path.open("w", encoding="utf-8") as f_index:
         for img_i, (pil_img, label) in enumerate(dl):
-            pil_img = pil_img[0]  # PIL
+            # pil_img is PIL.Image.Image
+            label = int(label)  # works for int or 0-d tensor
+
             label = int(label.item())
 
             # Food101 keeps file list
