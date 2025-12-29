@@ -15,10 +15,11 @@ from torchvision.ops import roi_align
 from PIL import Image
 from tqdm import tqdm
 
-# Your blocks (frozen)
+# Reuse your project blocks + Pipeline utilities (consistency with pipeline.run)
 from scripts.lvl1.efficientnet import EfficientNetBlock
 from scripts.lvl1.maskrcnn_torchvision import MaskRCNNTorchVisionBlock
 from scripts.lvl1.zoedepth import ZoeDepthBlock
+from scripts.pipeline import Pipeline
 
 
 @dataclass
@@ -48,10 +49,14 @@ def _resize_to_roi(arr_hw: np.ndarray, box_xyxy: np.ndarray, out_hw: int = 7) ->
     return np.asarray(pil, dtype=arr_hw.dtype)
 
 
-def _depth_stats(depth_hw: np.ndarray, mask_hw: np.ndarray) -> np.ndarray:
-    """Robust depth stats inside mask. Returns float32 vector of length 8."""
-    m = mask_hw.astype(bool)
-    vals = depth_hw[m].astype(np.float32)
+def _depth_stats_from_mask(depth_hw: np.ndarray, mask_hw: np.ndarray) -> np.ndarray:
+    """
+    Depth stats used by the fusion head.
+
+    We keep this as an 8-d vector, but we compute the key depth summaries
+    (median/mean) using Pipeline’s own implementation for consistency.
+    """
+    vals = depth_hw[mask_hw.astype(bool)].astype(np.float32)
     vals = vals[np.isfinite(vals)]
     if vals.size == 0:
         return np.zeros((8,), dtype=np.float32)
@@ -64,6 +69,7 @@ def _depth_stats(depth_hw: np.ndarray, mask_hw: np.ndarray) -> np.ndarray:
 
 
 def _largest_instances_first(masks_nhw: np.ndarray) -> np.ndarray:
+    """Order instance indices by mask area descending."""
     areas = masks_nhw.reshape(masks_nhw.shape[0], -1).sum(axis=1)
     return np.argsort(areas)[::-1]
 
@@ -90,10 +96,7 @@ def _save_shard(shard_path: Path, items: List[Dict[str, Any]]) -> None:
 
 
 def _choose_k_classes(all_classes: List[str], k: int, seed: int) -> List[int]:
-    """
-    Deterministic class subset selection: shuffle class indices with seed, take first K.
-    Returns sorted original class indices.
-    """
+    """Deterministic subset: shuffle class indices with seed, take first K (returned sorted)."""
     rng = np.random.RandomState(int(seed))
     idx = np.arange(len(all_classes))
     rng.shuffle(idx)
@@ -107,10 +110,7 @@ def _build_val_index_set(
     val_ratio: float,
     seed: int,
 ) -> Set[int]:
-    """
-    For TRAIN split only: build a set of global image indices that go to VAL,
-    stratified per chosen class (deterministic).
-    """
+    """Stratified train->val split over the chosen classes."""
     rng = np.random.RandomState(int(seed))
     by_class: Dict[int, List[int]] = {}
     for i, y in enumerate(labels):
@@ -143,9 +143,19 @@ def main() -> None:
     ap.add_argument("--class_seed", type=int, default=42, help="Seed for choosing the K classes.")
     ap.add_argument("--split_seed", type=int, default=123, help="Seed for splitting train->train/val (per class).")
 
+    # backbone config (match project defaults unless overridden)
+    ap.add_argument("--backbone_model_name", type=str, default="tf_efficientnetv2_s")
+    ap.add_argument("--backbone_out_indices", type=str, default="1,2,3,4")
+
     # instance selection
     ap.add_argument("--seg_thresh", type=float, default=0.5)
-    ap.add_argument("--min_mask_area_ratio", type=float, default=0.20)  # 20% of image pixels
+
+    # IMPORTANT: these are now fed into MaskRCNNTorchVisionBlock (single source of truth)
+    ap.add_argument("--min_mask_area_ratio", type=float, default=0.20)   # drop masks < this % of image
+    ap.add_argument("--iou_dup_thresh", type=float, default=0.70)        # IoU >= -> duplicate
+    ap.add_argument("--contain_thresh", type=float, default=0.97)        # containment >= -> redundant/union logic
+    ap.add_argument("--union_area_ratio", type=float, default=1.00)      # big mask considered union if >= ratio
+
     ap.add_argument("--keep_largest_only", action="store_true", help="Use only the largest mask per image.")
     ap.add_argument("--max_instances_per_image", type=int, default=3)
 
@@ -167,44 +177,78 @@ def main() -> None:
     shards_dir = out_dir / "shards"
     shards_dir.mkdir(parents=True, exist_ok=True)
 
-    # ------------------------------------------------------------
-    # Init logs (so terminal never looks frozen before loop starts)
-    # ------------------------------------------------------------
+    # -------------------
+    # loud init logs
+    # -------------------
     print(f"[start] split={args.split} device={args.device}")
     print(f"[start] out_dir={out_dir}")
     print(f"[start] food101_root={args.food101_root}")
+    print(
+        "[start] seg_thresh="
+        f"{args.seg_thresh} min_mask_area_ratio={args.min_mask_area_ratio} "
+        f"iou_dup_thresh={args.iou_dup_thresh} contain_thresh={args.contain_thresh} "
+        f"union_area_ratio={args.union_area_ratio}"
+    )
+    print(
+        f"[start] K={args.k_classes} class_seed={args.class_seed} "
+        f"split_seed={args.split_seed} val_ratio={args.val_ratio}"
+    )
 
-    print("[init] building frozen blocks...")
-    t_init = time.time()
+    out_indices = tuple(int(x.strip()) for x in str(args.backbone_out_indices).split(",") if x.strip())
+    print(f"[start] backbone_model_name={args.backbone_model_name} backbone_out_indices={out_indices}")
 
-    print("[init] backbone...")
+    # -------------------
+    # build blocks (reused)
+    # -------------------
+    print("[init] building blocks (same classes as pipeline uses)...")
+
     t = time.time()
-    backbone = EfficientNetBlock(mode="backbone", device=args.device)
+    backbone = EfficientNetBlock(
+        model_name=args.backbone_model_name,
+        device=args.device,
+        mode="backbone",
+        out_indices=out_indices,
+    )
     print(f"[init] backbone done in {time.time() - t:.1f}s")
 
-    print("[init] segmentation...")
     t = time.time()
-    seg = MaskRCNNTorchVisionBlock(device=args.device)
-    print(f"[init] segmentation done in {time.time() - t:.1f}s")
+    seg = MaskRCNNTorchVisionBlock(
+        device=args.device,
+        min_mask_area_ratio=float(args.min_mask_area_ratio),
+        iou_dup_thresh=float(args.iou_dup_thresh),
+        contain_thresh=float(args.contain_thresh),
+        union_area_ratio=float(args.union_area_ratio),
+    )
+    print(f"[init] seg done in {time.time() - t:.1f}s")
 
-    print("[init] depth...")
     t = time.time()
     depth = ZoeDepthBlock(device=args.device)
     print(f"[init] depth done in {time.time() - t:.1f}s")
 
-    print(f"[init] all blocks done in {time.time() - t_init:.1f}s")
+    # Create a Pipeline instance ONLY to reuse its utility methods (consistency),
+    # we do NOT call pipeline.run() to avoid instantiating prediction/physics heads.
+    pipe_utils = Pipeline(
+        backbone_block=backbone,
+        seg_block=seg,
+        depth_block=depth,
+        fusion_block=None,
+        prediction_head=None,
+        physics_head=None,
+        device=args.device,
+        seg_score_thresh=float(args.seg_thresh),
+    )
 
-    # ----------------
-    # dataset + subset
-    # ----------------
-    print("[data] loading Food101 dataset...")
+    # -------------------
+    # dataset
+    # -------------------
+    print("[data] loading Food101...")
     root = _maybe_fix_food101_root(Path(args.food101_root))
     print(f"[data] resolved root={root}")
     ds = Food101(root=str(root), split=args.split, download=False)
     all_class_names: List[str] = list(ds.classes)
-    print(f"[data] loaded Food101: total_images={len(ds)} num_classes={len(all_class_names)}")
+    print(f"[data] loaded: total_images={len(ds)} classes={len(all_class_names)}")
 
-    print(f"[subset] choosing K={args.k_classes} classes with seed={args.class_seed}...")
+    # subset selection
     chosen_orig = _choose_k_classes(all_class_names, k=int(args.k_classes), seed=int(args.class_seed))
     chosen_orig_set = set(chosen_orig)
     orig_to_new = {orig: new for new, orig in enumerate(chosen_orig)}
@@ -215,7 +259,6 @@ def main() -> None:
     for new_label, name in enumerate(chosen_names):
         print(f"  [{new_label:02d}] {name}")
 
-    print("[subset] writing subset_meta.json ...")
     subset_meta_path = out_dir / "subset_meta.json"
     subset_meta = {
         "k_classes": int(args.k_classes),
@@ -226,34 +269,43 @@ def main() -> None:
         "class_seed": int(args.class_seed),
         "split_seed": int(args.split_seed),
         "val_ratio": float(args.val_ratio),
+        "backbone_model_name": args.backbone_model_name,
+        "backbone_out_indices": list(out_indices),
+        "seg_thresh": float(args.seg_thresh),
+
+        # record the EXACT seg block params used (single source of truth)
+        "min_mask_area_ratio": float(args.min_mask_area_ratio),
+        "iou_dup_thresh": float(args.iou_dup_thresh),
+        "contain_thresh": float(args.contain_thresh),
+        "union_area_ratio": float(args.union_area_ratio),
+
+        "keep_largest_only": bool(args.keep_largest_only),
+        "max_instances_per_image": int(args.max_instances_per_image),
     }
     subset_meta_path.write_text(json.dumps(subset_meta, indent=2), encoding="utf-8")
     print(f"[subset] wrote {subset_meta_path}")
 
-    print("[split] preparing train/val index set (only if split=train)...")
+    # val split (train only)
+    print("[split] preparing val split (if split=train)...")
     val_index_set: Set[int] = set()
     if args.split == "train" and float(args.val_ratio) > 0:
         if hasattr(ds, "targets"):
             labels_list = list(ds.targets)
         else:
             labels_list = list(ds._labels)  # type: ignore[attr-defined]
-
         val_index_set = _build_val_index_set(
             labels=labels_list,
             chosen_orig_labels=chosen_orig_set,
             val_ratio=float(args.val_ratio),
             seed=int(args.split_seed),
         )
-        print(f"[split] val_ratio={args.val_ratio} -> val_images={len(val_index_set)} (over full train split indices)")
+        print(f"[split] val_images={len(val_index_set)} (indices over full train split)")
     else:
-        print("[split] no val split (split=test or val_ratio=0)")
+        print("[split] no val split")
 
-    # ------------
-    # DataLoader
-    # ------------
+    # dataloader (avoid PIL collation issues with workers)
     def _collate_one(batch):
-        # batch size is 1: [(PIL.Image, label_int)]
-        return batch[0]
+        return batch[0]  # (PIL.Image, int)
 
     print("[data] building DataLoader...")
     dl = DataLoader(
@@ -268,22 +320,15 @@ def main() -> None:
     )
     print(
         "[data] DataLoader ready "
-        f"(num_workers={args.num_workers}, pin_memory={bool(args.pin_memory)}, "
+        f"(workers={args.num_workers}, pin_memory={bool(args.pin_memory)}, "
         f"prefetch_factor={args.prefetch_factor}, persistent_workers={bool(args.persistent_workers)})"
     )
 
-    # ----------------------
-    # Output index files
-    # ----------------------
+    # output indices
     if args.split == "train":
-        index_paths = {
-            "train": out_dir / "index_train.jsonl",
-            "val": out_dir / "index_val.jsonl",
-        }
+        index_paths = {"train": out_dir / "index_train.jsonl", "val": out_dir / "index_val.jsonl"}
     else:
-        index_paths = {
-            "test": out_dir / "index_test.jsonl",
-        }
+        index_paths = {"test": out_dir / "index_test.jsonl"}
 
     print("[io] opening index files:")
     for k, p in index_paths.items():
@@ -293,10 +338,8 @@ def main() -> None:
     shard_items: Dict[str, List[Dict[str, Any]]] = {k: [] for k in index_paths.keys()}
     shard_id: Dict[str, int] = {k: 0 for k in index_paths.keys()}
 
-    # -----------
-    # Warmup
-    # -----------
-    print("[warmup] running 1 dummy forward for seg/depth/backbone (to avoid long first-iteration silence)...")
+    # warmup (prevents “silent for minutes” on first image)
+    print("[warmup] running 1 dummy forward (seg/depth/backbone)...")
     dummy = np.zeros((384, 512, 3), dtype=np.uint8)
 
     t = time.time()
@@ -312,12 +355,9 @@ def main() -> None:
     print(f"[warmup] backbone done in {time.time() - t:.1f}s")
     print("[warmup] done. entering main loop...")
 
-    # ------------------------
-    # Main caching loop
-    # ------------------------
+    # main loop
     processed_images = 0
     wrote_instances = 0
-
     t0 = time.time()
     last_log_t = t0
     last_heartbeat = time.time()
@@ -326,14 +366,12 @@ def main() -> None:
 
     try:
         for img_i, (pil_img, orig_label) in enumerate(dl):
-            # keep robust for int / 0-d tensor
             orig_label = int(orig_label) if not hasattr(orig_label, "item") else int(orig_label.item())
 
             # filter to chosen K classes
             if orig_label not in chosen_orig_set:
                 processed_images += 1
                 pbar.update(1)
-                # heartbeat even on skipped items
                 now = time.time()
                 if now - last_heartbeat >= float(args.heartbeat_every):
                     elapsed = now - t0
@@ -347,62 +385,36 @@ def main() -> None:
             new_label = int(orig_to_new[orig_label])
             class_name = chosen_names[new_label]
 
-            # assign split bucket
             if args.split == "train":
                 bucket = "val" if (img_i in val_index_set) else "train"
             else:
                 bucket = "test"
 
-            # Food101 keeps file list
             img_path = str(ds._image_files[img_i])
-
             img = np.asarray(pil_img.convert("RGB"), dtype=np.uint8)
-            H, W = img.shape[:2]
 
-            # segmentation
+            # segmentation (single source of truth: tiny-mask + dedupe + union removal are INSIDE this block)
             seg_out = seg(img, score_thresh=float(args.seg_thresh))
             masks = seg_out.masks
             boxes = seg_out.boxes_xyxy
-            scores = seg_out.scores
+
             if masks.shape[0] == 0:
                 processed_images += 1
                 pbar.update(1)
-                now = time.time()
-                if now - last_heartbeat >= float(args.heartbeat_every):
-                    elapsed = now - t0
-                    print(
-                        f"[heartbeat] images={processed_images}/{len(ds)} "
-                        f"instances={wrote_instances} elapsed_min={elapsed/60:.1f}"
-                    )
-                    last_heartbeat = now
                 continue
 
-            # guaranteed removal of tiny masks relative to image size
-            areas = masks.reshape(masks.shape[0], -1).sum(axis=1).astype(np.float32)
-            keep = areas >= (float(args.min_mask_area_ratio) * float(H * W))
-            masks, boxes, scores = masks[keep], boxes[keep], scores[keep]
-            if masks.shape[0] == 0:
-                processed_images += 1
-                pbar.update(1)
-                now = time.time()
-                if now - last_heartbeat >= float(args.heartbeat_every):
-                    elapsed = now - t0
-                    print(
-                        f"[heartbeat] images={processed_images}/{len(ds)} "
-                        f"instances={wrote_instances} elapsed_min={elapsed/60:.1f}"
-                    )
-                    last_heartbeat = now
-                continue
+            # depth (your existing class)
+            depth_hw = depth(img).depth.astype(np.float32)  # [H,W]
 
-            # depth
-            depth_out = depth(img)
-            depth_hw = depth_out.depth.astype(np.float32)  # [H,W]
+            # backbone (your existing class)
+            back_out = backbone(img)
+            feats = back_out.features
+            F = feats[-1]  # [1,C,Hf,Wf]
 
-            # backbone features
-            bb = backbone(img)
-            F = bb.features[-1]  # [1,C,Hf,Wf]
+            # compute spatial scale from feature map size vs image size
+            H_img, W_img = img.shape[:2]
             _, C, Hf, Wf = F.shape
-            spatial_scale = float(Wf) / float(W)
+            spatial_scale = float(Wf) / float(W_img)
 
             order = _largest_instances_first(masks)
             if args.keep_largest_only:
@@ -414,6 +426,7 @@ def main() -> None:
                 m = masks[int(j)].astype(np.uint8)
                 b = boxes[int(j)].astype(np.float32)
 
+                # ROIAlign for a compact spatial representation (kept for fusion head training format)
                 rois = torch.tensor([[0, b[0], b[1], b[2], b[3]]], device=F.device, dtype=torch.float32)
                 roi_feat = roi_align(
                     input=F,
@@ -426,17 +439,26 @@ def main() -> None:
 
                 roi_feat_cpu = roi_feat.detach().cpu().to(torch.float16)  # [C,7,7]
 
+                # mask/depth ROIs
                 mask_roi = _resize_to_roi(m, b, out_hw=7).astype(np.uint8)
                 depth_roi = _resize_to_roi(depth_hw, b, out_hw=7).astype(np.float32)
                 depth_roi = (depth_roi * (mask_roi > 0)).astype(np.float32)
-                d_stats = _depth_stats(depth_hw, m > 0)
+
+                # IMPORTANT: depth summaries computed using Pipeline utility for consistency
+                d_med, d_mean = pipe_utils._mask_pool_depth(depth_hw, m.astype(bool))
+
+                # richer stats for head; overwrite mean/median to match pipeline exactly
+                d_stats = _depth_stats_from_mask(depth_hw, m.astype(bool))
+                # d_stats layout: [mean, std, mad, q10, q25, q50, q75, q90]
+                d_stats[0] = float(d_mean)
+                d_stats[5] = float(d_med)
 
                 shard_items[bucket].append(
                     {
-                        "roi_feat": roi_feat_cpu,
-                        "mask_roi": torch.from_numpy(mask_roi[None, ...].astype(np.float32)),
-                        "depth_roi": torch.from_numpy(depth_roi[None, ...].astype(np.float32)),
-                        "depth_stats": torch.from_numpy(d_stats),
+                        "roi_feat": roi_feat_cpu,  # float16 [C,7,7]
+                        "mask_roi": torch.from_numpy(mask_roi[None, ...].astype(np.float32)),    # [1,7,7]
+                        "depth_roi": torch.from_numpy(depth_roi[None, ...].astype(np.float32)),  # [1,7,7]
+                        "depth_stats": torch.from_numpy(d_stats.astype(np.float32)),            # [8]
                         "label": torch.tensor(new_label, dtype=torch.long),
                         "orig_label": int(orig_label),
                         "class_name": class_name,
@@ -455,7 +477,6 @@ def main() -> None:
                 f_index[bucket].write(json.dumps(rec.__dict__, ensure_ascii=False) + "\n")
                 wrote_instances += 1
 
-                # flush shard if full
                 if len(shard_items[bucket]) >= int(args.shard_size):
                     _save_shard(shard_path, shard_items[bucket])
                     shard_items[bucket].clear()
@@ -464,7 +485,6 @@ def main() -> None:
             processed_images += 1
             pbar.update(1)
 
-            # log_every-based rate logging
             if (processed_images % int(args.log_every)) == 0:
                 now = time.time()
                 dt = now - last_log_t
@@ -473,7 +493,6 @@ def main() -> None:
                 pbar.set_postfix(instances=wrote_instances, img_s=f"{ips:.2f}", elapsed_min=f"{elapsed/60:.1f}")
                 last_log_t = now
 
-            # time-based heartbeat (even if log_every hasn't fired)
             now = time.time()
             if now - last_heartbeat >= float(args.heartbeat_every):
                 elapsed = now - t0
@@ -483,7 +502,6 @@ def main() -> None:
                 )
                 last_heartbeat = now
 
-        # flush remaining shards
         print("[io] flushing remaining shard buffers...")
         for bucket, items in shard_items.items():
             if items:
@@ -496,7 +514,7 @@ def main() -> None:
         for f in f_index.values():
             f.close()
 
-    print(f"[done] Subset meta: {subset_meta_path}")
+    print(f"[done] subset_meta: {subset_meta_path}")
     print(f"[done] processed_images={processed_images} wrote_instances={wrote_instances}")
     for k, p in index_paths.items():
         print(f"[done] Index[{k}]: {p}")
