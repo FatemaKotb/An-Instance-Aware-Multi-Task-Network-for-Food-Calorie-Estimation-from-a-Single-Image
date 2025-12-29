@@ -2,10 +2,6 @@
 food_vision_playground/runs/
 clip_finetune/data/
 
-# Ignore all shard caches for any K value
-food_vision_playground/food101_cache_k*/shards/
-food_vision_playground/food101_cache_k*/shards/**
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
