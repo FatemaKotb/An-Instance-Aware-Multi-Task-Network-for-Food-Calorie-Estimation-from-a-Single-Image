@@ -1,1 +1,0 @@
-# An-Instance-Aware-Multi-Task-Network-for-Food-Calorie-Estimation-from-a-Single-Image
