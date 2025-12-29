@@ -29,13 +29,13 @@ Estimates volume and calories from geometry + food label lookup.
 ### Hybrid CLIP (baseline):
 
 ```bash
-python -m scripts.run_pipeline --image path/to/img.jpg --pipeline_mode hybrid_clip
+python -m scripts.run_pipeline --image data/pizzas.avif --pipeline_mode hybrid_clip
 ```
 
 ### Fusion-head classifier:
 
 ```bash
-python -m scripts.run_pipeline --image path/to/img.jpg --pipeline_mode fusion_head --fusion_ckpt fusion_head_k2.pt
+python -m scripts.run_pipeline --image data/pizzas.avif --pipeline_mode fusion_head --fusion_ckpt fusion_head_k2.pt
 ```
 
 ## What gets saved in `runs/<image_stem>/` after running
