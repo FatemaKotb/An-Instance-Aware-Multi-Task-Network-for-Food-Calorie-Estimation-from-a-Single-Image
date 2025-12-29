@@ -234,7 +234,7 @@ def main() -> None:
                 key=lambda inst: float(getattr(inst.prediction, "food_conf", 0.0) or 0.0),
                 reverse=True,
             )
-            
+
             best = instances[0]  # after sorting
             print(f"PRED_LABEL={getattr(best.prediction, 'food_class_name', None)}")
 
@@ -242,14 +242,11 @@ def main() -> None:
                 pred = inst.prediction
                 phys = inst.physics
                 logger.info(
+                    f"Instance {i:03d}:\n"
                     f"top5_foods={getattr(pred, 'top5_foods', None)}\n\n"
-                    f"area_px={phys.area_px}\n"
-                    f"volume={_safe_float(phys.volume)}\n"
-                    f"calories={_safe_float(phys.calories)}\n\n"
                     f"food_class_id={getattr(pred, 'food_class_id', None)}\n"
                     f"food_class_name={getattr(pred, 'food_class_name', None)}\n"
                     f"food_conf={_safe_float(getattr(pred, 'food_conf', None))}\n"
-                    f"portion={_safe_float(getattr(pred, 'portion', None))}\n\n"
                 )
 
         logger.info("DONE: run_pipeline finished successfully.")
