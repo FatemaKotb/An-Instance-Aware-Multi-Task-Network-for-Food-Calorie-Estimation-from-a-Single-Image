@@ -224,20 +224,19 @@ def main() -> None:
     with _Section(logger, "Per-instance summary"):
         topk = max(0, int(args.topk))
         logger.info(f"Printing top-{topk} instances")
+        
         if len(out.instance_outputs) == 0:
             logger.info("No instances detected above threshold.")
+            print("PRED_LABEL=None")
         else:
             instances = list(out.instance_outputs)
             instances.sort(
                 key=lambda inst: float(getattr(inst.prediction, "food_conf", 0.0) or 0.0),
                 reverse=True,
             )
-
-            if len(out.instance_outputs) > 0:
-                best = instances[0]  # after sorting
-                print(f"PRED_LABEL={getattr(best.prediction, 'food_class_name', None)}")
-            else:
-                print("PRED_LABEL=None")
+            
+            best = instances[0]  # after sorting
+            print(f"PRED_LABEL={getattr(best.prediction, 'food_class_name', None)}")
 
             for i, inst in enumerate(instances[:topk]):
                 pred = inst.prediction
