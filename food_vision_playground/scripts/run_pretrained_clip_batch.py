@@ -69,16 +69,39 @@ def main() -> None:
     parser.add_argument("--out_file", type=str, default="pretrained_clip_top5.txt", help="Output file.")
     parser.add_argument("--device", type=str, default=None, help="cuda or cpu. Default: auto-detect.")
     parser.add_argument("--seg_thresh", type=float, default=0.5, help="Segmentation score threshold.")
+
+    # NEW: allow switching between baselines / heads from the same batch script
+    parser.add_argument(
+        "--pipeline_mode",
+        type=str,
+        choices=["hybrid_clip", "fusion_head"],
+        default="hybrid_clip",
+        help="hybrid_clip (baseline) or fusion_head (trained fusion-head classifier).",
+    )
+    parser.add_argument(
+        "--fusion_ckpt",
+        type=str,
+        default="fusion_head_subset.pt",
+        help="Fusion-head checkpoint path (used only when --pipeline_mode=fusion_head).",
+    )
+
     args = parser.parse_args()
 
     device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
     data_dir = Path(args.data_dir)
 
-    cfg = PipelineFactoryConfig(device=device, seg_score_thresh=float(args.seg_thresh))
+    cfg = PipelineFactoryConfig(
+        device=device,
+        seg_score_thresh=float(args.seg_thresh),
+        pipeline_mode=str(args.pipeline_mode),
+        fusion_head_ckpt_path=str(args.fusion_ckpt),
+    )
     pipe = build_default_pipeline(cfg)
 
     lines: List[str] = []
-    lines.append(f"device={device} seg_thresh={args.seg_thresh}")
+    lines.append(f"device={device} seg_thresh={args.seg_thresh} pipeline_mode={args.pipeline_mode}")
+    if str(args.pipeline_mode).lower() == "fusion_head":
+        lines.append(f"fusion_ckpt={args.fusion_ckpt}")
     lines.append("format: <image_path> | top5=[c1, c2, c3, c4, c5] | best_inst_score=<score>")
     lines.append("")
 

@@ -1,0 +1,36 @@
+{
+  "k_classes": 2,
+  "chosen_orig_labels_sorted": [
+    55,
+    84
+  ],
+  "chosen_class_names": [
+    "hot_dog",
+    "risotto"
+  ],
+  "orig_to_new": {
+    "55": 0,
+    "84": 1
+  },
+  "new_to_orig": {
+    "0": 55,
+    "1": 84
+  },
+  "class_seed": 42,
+  "split_seed": 123,
+  "val_ratio": 0.1,
+  "backbone_model_name": "tf_efficientnetv2_s",
+  "backbone_out_indices": [
+    1,
+    2,
+    3,
+    4
+  ],
+  "seg_thresh": 0.5,
+  "min_mask_area_ratio": 0.2,
+  "iou_dup_thresh": 0.7,
+  "contain_thresh": 0.97,
+  "union_area_ratio": 1.0,
+  "keep_largest_only": true,
+  "max_instances_per_image": 3
+}
