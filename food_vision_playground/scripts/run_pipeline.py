@@ -235,9 +235,9 @@ def main() -> None:
 
             if len(out.instance_outputs) > 0:
                 best = instances[0]  # after sorting
-                logger.info(f"PRED_LABEL={getattr(best.prediction, 'food_class_name', None)}")
+                print(f"PRED_LABEL={getattr(best.prediction, 'food_class_name', None)}")
             else:
-                logger.info("PRED_LABEL=None")
+                print("PRED_LABEL=None")
 
             for i, inst in enumerate(instances[:topk]):
                 pred = inst.prediction
