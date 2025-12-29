@@ -24,14 +24,19 @@ Predicts the food label for the instance. A stub that can be replaced with a lea
 ### Level 4 — Physics-based calories (rule-based)
 Estimates volume and calories from geometry + food label lookup.
 
-
 ## How to run
 
+### Hybrid CLIP (baseline):
+
 ```bash
-cd food_vision_playground
-python -m scripts.run_pipeline --image data/sample.jpg --seg_thresh 0.5
+python -m scripts.run_pipeline --image path/to/img.jpg --pipeline_mode hybrid_clip
 ```
 
+### Fusion-head classifier:
+
+```bash
+python -m scripts.run_pipeline --image path/to/img.jpg --pipeline_mode fusion_head --fusion_ckpt fusion_head_k2.pt
+```
 
 ## What gets saved in `runs/<image_stem>/` after running
 

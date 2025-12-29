@@ -14,12 +14,8 @@ from PIL import Image
 
 from scripts.factory import PipelineFactoryConfig, build_default_pipeline
 
-# Keep terminal output clean by default
 warnings.filterwarnings("ignore", message="torch.meshgrid:*")
 warnings.filterwarnings("ignore", message="enable_nested_tensor*")
-
-
-# ---------------- Logging helpers ----------------
 
 SEP = "\n" + ("=" * 88) + "\n"
 
@@ -27,21 +23,16 @@ SEP = "\n" + ("=" * 88) + "\n"
 def _setup_logger() -> logging.Logger:
     logger = logging.getLogger("run_pipeline")
     logger.setLevel(logging.INFO)
-
-    # Avoid duplicate handlers when run multiple times (e.g., in notebooks)
     if not logger.handlers:
         handler = logging.StreamHandler()
         fmt = logging.Formatter("%(asctime)s | %(levelname)s | %(message)s", datefmt="%H:%M:%S")
         handler.setFormatter(fmt)
         logger.addHandler(handler)
-
     logger.propagate = False
     return logger
 
 
 class _Section:
-    """Context manager that logs START/END with duration and a separator."""
-
     def __init__(self, logger: logging.Logger, title: str):
         self.logger = logger
         self.title = title
@@ -59,20 +50,15 @@ class _Section:
         else:
             self.logger.exception(f"FAILED: {self.title}  |  after {dt:.2f}s")
         self.logger.info(SEP)
-        # Don't swallow exceptions
         return False
 
 
-# ---------------- Image I/O ----------------
-
 def load_rgb(path: str) -> np.ndarray:
-    """Load an image from disk as RGB uint8 numpy array [H,W,3]."""
     img = Image.open(path).convert("RGB")
     return np.array(img)
 
 
 def ensure_uint8_rgb(img: np.ndarray) -> np.ndarray:
-    """Ensure input is uint8 RGB [H,W,3]."""
     if img.dtype != np.uint8:
         img = np.clip(img, 0, 255).astype(np.uint8)
     if img.ndim != 3 or img.shape[2] != 3:
@@ -85,7 +71,6 @@ def save_uint8_rgb(path: Path, img_rgb_uint8: np.ndarray) -> None:
 
 
 def _nan_to_none(x):
-    """Make floats JSON-safe (convert nan/inf/unparsable -> None)."""
     try:
         xf = float(x)
         if np.isnan(xf) or np.isinf(xf):
@@ -96,7 +81,6 @@ def _nan_to_none(x):
 
 
 def _save_depth_png(path: Path, depth_hw: np.ndarray) -> None:
-    """Save a normalized depth PNG for quick visualization."""
     d = depth_hw.astype(np.float32)
     finite = np.isfinite(d)
     if finite.any():
@@ -111,7 +95,6 @@ def _save_depth_png(path: Path, depth_hw: np.ndarray) -> None:
 
 
 def _safe_float(x) -> str:
-    """Format float-ish values robustly for logs."""
     try:
         if x is None:
             return "None"
@@ -126,44 +109,57 @@ def _safe_float(x) -> str:
 def main() -> None:
     logger = _setup_logger()
 
-    parser = argparse.ArgumentParser(description="Build default pipeline via factory, run inference, save outputs.")
+    parser = argparse.ArgumentParser(description="Build pipeline via factory, run inference, save outputs.")
     parser.add_argument("--image", type=str, required=True, help="Path to an input image.")
     parser.add_argument("--device", type=str, default=None, help="cuda or cpu. Default: auto-detect.")
     parser.add_argument("--seg_thresh", type=float, default=0.5, help="Segmentation score threshold.")
+    parser.add_argument(
+        "--pipeline_mode",
+        type=str,
+        choices=["hybrid_clip", "fusion_head"],
+        default="hybrid_clip",
+        help="Which prediction path to run: hybrid_clip (baseline) or fusion_head (trained classifier).",
+    )
+    parser.add_argument(
+        "--fusion_ckpt",
+        type=str,
+        default="fusion_head_subset.pt",
+        help="Fusion-head checkpoint path (used only when --pipeline_mode=fusion_head).",
+    )
     parser.add_argument("--topk", type=int, default=5, help="How many instances to print.")
     parser.add_argument("--out_dir", type=str, default=None, help="Output directory. Default: runs/<image_stem>/")
     args = parser.parse_args()
 
-    # ---- Device selection ----
     with _Section(logger, "Device selection"):
         device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
         logger.info(f"Device: {device}")
         if device == "cuda":
             logger.info(f"GPU: {torch.cuda.get_device_name(0)}")
-            # Helpful to debug "why not using GPU"
             logger.info(f"CUDA available: {torch.cuda.is_available()}")
             logger.info(f"CUDA version (torch): {torch.version.cuda}")
             logger.info(f"cuDNN enabled: {torch.backends.cudnn.enabled}")
 
-    # ---- Load input image ----
     with _Section(logger, "Load input image"):
         img_path = Path(args.image)
         if not img_path.exists():
             raise FileNotFoundError(f"Image not found: {img_path}")
-
         img = ensure_uint8_rgb(load_rgb(str(img_path)))
         H, W = img.shape[:2]
         logger.info(f"Path: {img_path}")
         logger.info(f"Image shape: {img.shape}  dtype={img.dtype}")
         logger.info(f"Resolution: {W}x{H}")
 
-    # ---- Build pipeline via factory (Option 1 wiring) ----
     with _Section(logger, "Build pipeline via factory"):
         logger.info(f"seg_thresh: {float(args.seg_thresh)}")
-        cfg = PipelineFactoryConfig(device=device, seg_score_thresh=float(args.seg_thresh))
+        logger.info(f"pipeline_mode: {args.pipeline_mode}")
+        cfg = PipelineFactoryConfig(
+            device=device,
+            seg_score_thresh=float(args.seg_thresh),
+            pipeline_mode=str(args.pipeline_mode),
+            fusion_head_ckpt_path=str(args.fusion_ckpt),
+        )
         pipe = build_default_pipeline(cfg)
 
-        # Best-effort: log block class names (helps confirm wiring)
         logger.info(f"Backbone block: {type(pipe.backbone_block).__name__}")
         logger.info(f"Segmentation block: {type(pipe.seg_block).__name__}")
         logger.info(f"Depth block: {type(pipe.depth_block).__name__}")
@@ -171,36 +167,25 @@ def main() -> None:
         logger.info(f"Prediction head: {type(pipe.prediction_head).__name__}")
         logger.info(f"Physics head: {type(pipe.physics_head).__name__}")
 
-    # ---- Run pipeline ----
     with _Section(logger, "Run pipeline inference"):
         out = pipe(img)
-
         logger.info(f"Instances: {len(out.instance_outputs)}")
         logger.info(f"Backbone feature maps: {len(out.backbone_features)}")
 
-        # Depth summary
         dmin = float(np.nanmin(out.depth_map))
         dmax = float(np.nanmax(out.depth_map))
         logger.info(f"Depth: shape={out.depth_map.shape} dtype={out.depth_map.dtype}")
         logger.info(f"Depth range: min={dmin:.6f} max={dmax:.6f}")
 
-    # ---- Output directory + save artifacts ----
     with _Section(logger, "Save artifacts"):
         stem = img_path.stem
         out_dir = Path(args.out_dir) if args.out_dir else Path("runs") / stem
         out_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"Output dir: {out_dir.resolve()}")
 
-        # Save input
         save_uint8_rgb(out_dir / "input.png", img)
         logger.info("Saved: input.png")
 
-        # NOTE: User-requested output policy
-        # - Do NOT save global masks_overlay.png / mask_*.png
-        # - Do NOT save global depth.npy / depth.png
-        # We only save per-instance masked RGB and per-instance depth maps.
-
-        # Per-instance assets + JSON summary
         inst_dir = out_dir / "instances"
         inst_dir.mkdir(parents=True, exist_ok=True)
 
@@ -208,12 +193,10 @@ def main() -> None:
         for i, inst in enumerate(out.instance_outputs):
             m = inst.mask.astype(bool)
 
-            # (1) masked RGB (mask * original)
             masked_rgb = img.copy()
             masked_rgb[~m] = 0
             save_uint8_rgb(inst_dir / f"instance_{i:03d}_masked_rgb.png", masked_rgb)
 
-            # (2) masked depth for this instance (save both raw + viewable)
             depth_masked = out.depth_map.astype(np.float32)
             depth_masked = np.where(m, depth_masked, np.nan).astype(np.float32)
             np.save(inst_dir / f"instance_{i:03d}_depth.npy", depth_masked.astype(np.float32))
@@ -236,9 +219,8 @@ def main() -> None:
             json.dumps(instances_json, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
-        logger.info(f"Saved: instances/ (assets) + instances.json (objects={len(instances_json)})")
+        logger.info(f"Saved: instances/ + instances.json (objects={len(instances_json)})")
 
-    # ---- Per-instance summary ----
     with _Section(logger, "Per-instance summary"):
         topk = max(0, int(args.topk))
         logger.info(f"Printing top-{topk} instances")
@@ -248,41 +230,18 @@ def main() -> None:
             for i, inst in enumerate(out.instance_outputs[:topk]):
                 pred = inst.prediction
                 phys = inst.physics
-
-                food_class_id = getattr(pred, "food_class_id", None)
-                food_class_name = getattr(pred, "food_class_name", None)
-                food_conf = getattr(pred, "food_conf", None)
-                portion = getattr(pred, "portion", None)
-
                 logger.info(
                     f"top5_foods={getattr(pred, 'top5_foods', None)}\n\n"
                     f"area_px={phys.area_px}\n"
                     f"volume={_safe_float(phys.volume)}\n"
                     f"calories={_safe_float(phys.calories)}\n\n"
-                    f"food_class_id={food_class_id}\n"
-                    f"food_class_name={food_class_name}\n"
-                    f"food_conf={_safe_float(food_conf)}\n"
-                    f"portion={_safe_float(portion)}\n\n"
+                    f"food_class_id={getattr(pred, 'food_class_id', None)}\n"
+                    f"food_class_name={getattr(pred, 'food_class_name', None)}\n"
+                    f"food_conf={_safe_float(getattr(pred, 'food_conf', None))}\n"
+                    f"portion={_safe_float(getattr(pred, 'portion', None))}\n\n"
                 )
 
-            # Extra hybrid info (if present)
-            sel = getattr(pred, "hybrid_selected", None)
-            if sel is not None:
-                logger.info(f"hybrid_selected={sel}  egypt_conf_thresh={getattr(pred, 'egypt_conf_thresh', None)}\n")
-
-                logger.info(
-                    f"food101: conf={_safe_float(getattr(pred, 'food101_food_conf', None))} "
-                    f"name={getattr(pred, 'food101_food_class_name', None)}\n"
-                    f"top5={getattr(pred, 'food101_top5_foods', None)}\n\n"
-                )
-
-                logger.info(
-                    f"egypt:   conf={_safe_float(getattr(pred, 'egypt_food_conf', None))} "
-                    f"name={getattr(pred, 'egypt_food_class_name', None)}\n"
-                    f"top5={getattr(pred, 'egypt_top5_foods', None)}\n\n"
-                )
-
-                logger.info("DONE: run_pipeline finished successfully.")
+        logger.info("DONE: run_pipeline finished successfully.")
 
 
 if __name__ == "__main__":

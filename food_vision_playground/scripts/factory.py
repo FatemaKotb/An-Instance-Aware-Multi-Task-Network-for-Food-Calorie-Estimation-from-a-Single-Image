@@ -8,9 +8,11 @@ from scripts.lvl1.efficientnet import EfficientNetBlock
 from scripts.lvl1.maskrcnn_torchvision import MaskRCNNTorchVisionBlock
 from scripts.lvl1.zoedepth import ZoeDepthBlock
 from scripts.lvl2.fusion_stub import FusionStub
+from scripts.lvl2.instance_aware_fusion_block import InstanceAwareFusionBlock
 from scripts.lvl3.prediction_head_pretrained import PredictionHeadPretrainedCLIP
 from scripts.lvl3.prediction_head_finetuned import PredictionHeadFinetunedCLIPLinear
 from scripts.lvl3.prediction_head_hybrid import PredictionHeadHybridCLIP
+from scripts.lvl3.prediction_head_fusion_model import PredictionHeadFusionModel
 from scripts.lvl4.physics_head_stub import PhysicsHeadStub
 
 
@@ -19,19 +21,24 @@ class PipelineFactoryConfig:
     device: str = "cuda"
     seg_score_thresh: float = 0.5
 
-    # Backbone
     backbone_model_name: str = "tf_efficientnetv2_s"
     backbone_out_indices: tuple = (1, 2, 3, 4)
 
-    # Physics
     density_by_name: Optional[Dict[str, float]] = None
     kcal_per_g_by_name: Optional[Dict[str, float]] = None
 
-    # Prediction Head
     finetuned_clip_ckpt_path: str = "egypt_clip_linear.pt"
 
-def build_default_pipeline(cfg: PipelineFactoryConfig) -> Pipeline:
-    """Build a fully-wired pipeline with explicit blocks (Option 1)."""
+    # Pipeline mode
+    # - "hybrid_clip": Hybrid CLIP-only head (baseline)
+    # - "fusion_head": trained fusion-head classifier
+    pipeline_mode: str = "hybrid_clip"
+
+    # Used only when pipeline_mode == "fusion_head"
+    fusion_head_ckpt_path: str = "fusion_head_subset.pt"
+
+
+def build_pipeline(cfg: PipelineFactoryConfig) -> Pipeline:
     backbone = EfficientNetBlock(
         model_name=cfg.backbone_model_name,
         device=cfg.device,
@@ -41,19 +48,21 @@ def build_default_pipeline(cfg: PipelineFactoryConfig) -> Pipeline:
     seg = MaskRCNNTorchVisionBlock(device=cfg.device)
     depth = ZoeDepthBlock(device=cfg.device)
 
-    fusion = FusionStub()
-
-    food101_head = PredictionHeadPretrainedCLIP(device=cfg.device)
-
-    egypt_head = PredictionHeadFinetunedCLIPLinear(
-        ckpt_path=cfg.finetuned_clip_ckpt_path,
-        device=cfg.device,
-    )
-
-    pred_head = PredictionHeadHybridCLIP(
-        food101_head=food101_head,
-        egypt_head=egypt_head,
-    )
+    if str(cfg.pipeline_mode).lower() == "fusion_head":
+        fusion = InstanceAwareFusionBlock()
+        pred_head = PredictionHeadFusionModel(ckpt_path=cfg.fusion_head_ckpt_path, device=cfg.device)
+    else:
+        fusion = FusionStub()
+        food101_head = PredictionHeadPretrainedCLIP(device=cfg.device)
+        egypt_head = PredictionHeadFinetunedCLIPLinear(
+            ckpt_path=cfg.finetuned_clip_ckpt_path,
+            device=cfg.device,
+        )
+        pred_head = PredictionHeadHybridCLIP(
+            food101_head=food101_head,
+            egypt_head=egypt_head,
+            egypt_conf_thresh=0.25,
+        )
 
     phys_head = PhysicsHeadStub()
 
@@ -67,3 +76,7 @@ def build_default_pipeline(cfg: PipelineFactoryConfig) -> Pipeline:
         device=cfg.device,
         seg_score_thresh=cfg.seg_score_thresh,
     )
+
+
+# Backward-compatible alias
+build_default_pipeline = build_pipeline
