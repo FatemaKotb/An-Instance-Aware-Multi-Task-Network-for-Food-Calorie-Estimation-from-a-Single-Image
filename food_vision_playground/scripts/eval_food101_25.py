@@ -3,25 +3,34 @@ import os
 import subprocess
 from pathlib import Path
 
+import subprocess
+
 FOOD101_ROOT = Path(os.environ.get("FOOD101_ROOT", "/kaggle/input/food-101/food-101"))
 SUBSET_META  = Path("food101_cache_k25/subset_meta.json")
 FUSION_CKPT   = "fusion_head_k25.pt"
 
 def run_one(image_path: Path, mode: str):
-    cmd = ["python", "-m", "scripts.run_pipeline", "--image", str(image_path), "--pipeline_mode", mode]
+    cmd = ["python", "-u", "-m", "scripts.run_pipeline", "--image", str(image_path), "--pipeline_mode", mode]
     if mode == "fusion_head":
         cmd += ["--fusion_ckpt", FUSION_CKPT]
 
-    out = subprocess.check_output(cmd, text=True, stderr=subprocess.STDOUT)
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
 
-    # EXPECTED: your run_pipeline logs a line like: PRED_LABEL=pizza
+    lines = []
+    for line in p.stdout:
+        print(line, end="")        # <- live logs in the cell
+        lines.append(line)
+
+    ret = p.wait()
+    out = "".join(lines)
+
     pred = None
     for line in reversed(out.splitlines()):
         if line.startswith("PRED_LABEL="):
             pred = line.split("=", 1)[1].strip()
             break
     if pred is None:
-        raise RuntimeError(f"Could not parse prediction. Add a 'PRED_LABEL=...' print.\nLast output:\n{out[-500:]}")
+        raise RuntimeError(f"Could not parse prediction... Last output:\n{out[-500:]}")
     return pred
 
 def main():
@@ -46,6 +55,9 @@ def main():
             pred = run_one(img_path, mode)
             correct += int(pred == cls)
             total += 1
+            if total % 50 == 0:
+                print(f"[{mode}] {total}/{len(rels)} running acc = {100*correct/total:.2f}%")
+
         acc = 100.0 * correct / max(total, 1)
         results[mode] = acc
         print(f"{mode}: {acc:.2f}%  (n={total})")
