@@ -227,7 +227,19 @@ def main() -> None:
         if len(out.instance_outputs) == 0:
             logger.info("No instances detected above threshold.")
         else:
-            for i, inst in enumerate(out.instance_outputs[:topk]):
+            instances = list(out.instance_outputs)
+            instances.sort(
+                key=lambda inst: float(getattr(inst.prediction, "food_conf", 0.0) or 0.0),
+                reverse=True,
+            )
+
+            if len(out.instance_outputs) > 0:
+                best = instances[0]  # after sorting
+                logger.info(f"PRED_LABEL={getattr(best.prediction, 'food_class_name', None)}")
+            else:
+                logger.info("PRED_LABEL=None")
+
+            for i, inst in enumerate(instances[:topk]):
                 pred = inst.prediction
                 phys = inst.physics
                 logger.info(
