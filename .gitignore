@@ -2,6 +2,20 @@
 food_vision_playground/runs/
 clip_finetune/data/
 
+runs/
+food_vision_playground/fusion_head_subset.pt
+
+# Credentials
+kaggle.json
+.claude/settings.local.json
+
+# OS / editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
 # Ignore all shard caches for any K value
 food_vision_playground/food101_cache_k*/shards/
 food_vision_playground/food101_cache_k*/shards/**
