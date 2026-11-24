@@ -16,7 +16,7 @@ flowchart LR
     FUSE -.-> CAL["Calorie estimation (future work)"]
 ```
 
-Course project for CMP612 Neural Networks and Deep Learning, Cairo University. The paper is in `paper/` and the slides in `presentation/`.
+Course project for CMP612 Neural Networks and Deep Learning, Cairo University. The paper (PDF) is in `paper/`.
 
 ## Structure
 
