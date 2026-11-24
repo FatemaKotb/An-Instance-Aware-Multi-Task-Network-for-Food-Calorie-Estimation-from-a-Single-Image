@@ -16,9 +16,13 @@ desktop.ini
 .vscode/
 .idea/
 
-# Ignore all shard caches for any K value
-food_vision_playground/food101_cache_k*/shards/
-food_vision_playground/food101_cache_k*/shards/**
+# Ignore all shard caches for any K value, in any directory
+**/food101_cache_*/shards/
+
+# Model checkpoints / tensors (already-tracked files stay tracked until `git rm --cached`)
+*.pt
+*.pth
+*.ckpt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
