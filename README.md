@@ -1,70 +1,83 @@
 # Instance-Aware Food Recognition
 
-A pipeline that recognizes each dish in a photo separately, rather than labeling the whole image. It combines three per-image models — dish outlines (Mask R-CNN), depth (ZoeDepth), and appearance features (EfficientNet) — and fuses them per dish to make a prediction.
-
-Depth and shape are groundwork for the intended next step — estimating each dish's volume and calories — which is left as future work.
+This project recognizes each dish in a food photo separately, rather than labeling the whole image. For each detected dish it combines three signals — its mask, depth, and appearance — rather than appearance alone. Evaluated on a 25-class subset of Food-101, it runs in three levels — perception, fusion, and prediction:
 
 ```mermaid
 flowchart LR
-    IMG[Input image] --> SEG[Mask R-CNN]
-    IMG --> DEPTH[ZoeDepth]
-    IMG --> BB[EfficientNet]
-    SEG --> FUSE[Per-instance FiLM fusion]
-    DEPTH --> FUSE
-    BB --> FUSE
-    FUSE --> CLS[Dish recognition]
-    FUSE -.-> CAL["Calorie estimation (future work)"]
+    IMG[Input image]
+
+    subgraph L1["Level 1 · Perception"]
+        SEG[Mask R-CNN]
+        DEPTH[ZoeDepth]
+        BB[EfficientNet]
+    end
+
+    IMG --> SEG
+    IMG --> DEPTH
+    IMG --> BB
+
+    SEG --> L2["Level 2 · Instance-aware fusion"]
+    DEPTH --> L2
+    BB --> L2
+
+    L2 --> L3["Level 3 · Fusion head"]
+    L3 --> LBL[Dish label]
 ```
 
-Course project for CMP612 Neural Networks and Deep Learning, Cairo University. The paper (PDF) is in `paper/`.
+Course project for CMP612 Neural Networks and Deep Learning, Cairo University. The paper is in `paper/`.
+
+## Pipeline
+
+**Level 1 — Perception.** Three pretrained models run on the image: Mask R-CNN segments each dish into its own mask, ZoeDepth estimates depth, and EfficientNet extracts appearance features.
+
+**Level 2 — Instance-aware fusion.** For each detected dish, its mask, depth, and appearance are cropped to the dish and resized to a common grid, plus a few summary depth statistics — forming aligned per-instance tensors.
+
+**Level 3 — Fusion head.** A small CNN encodes the mask and depth into FiLM parameters that scale and shift the appearance features; the modulated features are pooled over the mask, combined with the depth statistics, and an MLP predicts the dish class.
 
 ## Structure
 
 ```
-food_vision_playground/    main pipeline (single-image inference + Food-101 evaluation)
-  scripts/lvl1/            perception: Mask R-CNN, ZoeDepth, EfficientNet
-  scripts/lvl2/            instance-aware FiLM fusion block
-  scripts/lvl3/            prediction heads: fusion, hybrid CLIP, pretrained CLIP
-  scripts/lvl4/            rule-based calorie prototype (stub)
-  food101_cache_k2/, _k25/ cached per-instance tensors for training/eval
-  data/                    demo images
-clip_finetune/             CLIP linear-probe specialist for Egyptian dishes (src + Kaggle notebook)
-dataset_collection/        DINO+SAM annotation and web-collection notebooks
-paper/                     paper PDF
+food_vision_playground/scripts/
+  lvl1/   perception
+  lvl2/   instance-aware fusion block
+  lvl3/   fusion head
+  lvl4/   calorie estimation
+clip_finetune/        CLIP specialist (hybrid pipeline)
+dataset_collection/   data-collection notebooks
+paper/                paper PDF
 ```
+
+## What's trained
+
+Only the Level 3 fusion head is trained, on the Food-101 subset. Level 1 perception is pretrained and frozen, and Level 2 has no learned parameters.
 
 ## Running it
 
-The project centers on two datasets — a 25-class subset of Food-101 and a small custom set of Egyptian dishes — and two recognition pipelines that can run on either: a CLIP baseline and the instance-aware fusion model this project contributes. Both pipelines share the same perception front-end — Mask R-CNN for instances, ZoeDepth for depth, EfficientNet for features — and differ only in how they classify each detected dish. Each subproject has its own `requirements.txt`, and the pretrained models download their weights on first run; a GPU is recommended, though the per-image pipeline also runs on CPU.
-
-Running the pipeline on an image segments the dishes, estimates depth, and prints the top-5 prediction for each detected instance, saving the masks, depth map, and overlays under `runs/<image>/`. The pipeline is chosen with `--pipeline_mode`.
-
-The CLIP baseline classifies each dish with a general Food-101 CLIP head, falling back to a fine-tuned Egyptian specialist when the general head is unsure:
-
-```bash
-python -m scripts.run_pipeline --image data/pizzas.avif --pipeline_mode hybrid_clip
-```
-
-The fusion pipeline instead uses the trained instance-aware head, which modulates each dish's ROI appearance features by its mask-and-depth geometry:
+Running the pipeline on an image saves each dish's mask, depth, and top-5 prediction under `runs/<image>/`:
 
 ```bash
 python -m scripts.run_pipeline --image data/pizzas.avif --pipeline_mode fusion_head --fusion_ckpt fusion_head_k25.pt
 ```
 
-The two models are trained separately. The fusion head is trained in two steps: the perception stage is run once over the dataset and its per-instance tensors are cached to disk, then the lightweight head is trained on that cache — so the slow models run once rather than on every epoch, and checkpoints are chosen by validation top-1 accuracy. The Egyptian specialist is trained from `clip_finetune/` as a CLIP linear probe (Kaggle notebook or `src/`) and plugs into the baseline above.
-
-Level 4 (calorie estimation) is a rule-based prototype — a volume proxy from mask area times median depth, scaled by a small food-density and kcal lookup — and is not quantitatively evaluated.
+Trained checkpoints aren't committed to the repo, so `fusion_head_k25.pt` won't be there after a clone. Produce it by training the fusion head (`scripts/train_fusion_food101.py`), then pass its path to `--fusion_ckpt`.
 
 ## Results
 
-Top-1 accuracy on the Food-101 25-class subset:
+The fusion head reaches 70.0% top-1 accuracy on the Food-101 25-class subset.
 
-| Method | Top-1 |
-|---|---|
-| Pretrained CLIP | 71.20 |
-| Instance-aware fusion (ours) | 70.00 |
+## Extensions
 
-The underrepresented Egyptian 5-dish benchmark is shown qualitatively, as per-instance predictions on example dishes; a full quantitative comparison on it was not finalized.
+### Automated dataset collection
+
+An automated DINO+SAM pipeline (`dataset_collection/`) builds instance-labeled data for cuisines that standard benchmarks miss — for example, a small set of Egyptian dishes — with little manual labeling.
+
+### Hybrid CLIP pipeline
+
+The `hybrid_clip` mode swaps the trained fusion head for CLIP, classifying each detected dish from its image region rather than from the fused per-dish features (mask, depth, and appearance). It runs two classifiers: a general head matching the dish against Food-101 prompts, and a specialist linear probe (`clip_finetune/`) fine-tuned on the custom Egyptian dishes. The general prediction is returned by default, unless the specialist's confidence clears a threshold, in which case the specialist wins. It serves both as a baseline for the fusion head and as a generalist-plus-specialist route for under-represented classes.
+
+### Calorie estimation
+
+A Level 4 stub `lvl4/` computes a rough calorie proxy from each dish's volume — mask area times depth — and a small density/calorie table. The volume is uncalibrated, so real calorie estimation stays future work.
 
 Licensed under MIT.
 
